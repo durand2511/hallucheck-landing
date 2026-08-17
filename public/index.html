@@ -90,7 +90,7 @@
   <section class="hero wrap">
     <span class="badge">● Early access opening soon</span>
     <h1>An LLM that <span class="grad">doesn't make things up.</span></h1>
-    <p class="sub">vanKonijnenburg is a large language model trained end-to-end for grounded answers. On our internal benchmark, 0 of 643 independently fact-checked answers contained a fabricated fact — only 4 contained a reasoning error.</p>
+    <p class="sub">vanKonijnenburg is a large language model trained end-to-end for grounded answers. Evaluated against Google's official FACTS Grounding methodology on 643 independently fact-checked answers: 0 fabricated facts, only 4 with a reasoning error.</p>
 
     <div class="code"><span class="c">POST</span> <span class="k">/v1/chat/completions</span>
 <span class="c">{</span> <span class="k">"model"</span>: <span class="c">"vankonijnenburg-1"</span>, <span class="k">"messages"</span>: <span class="c">[...]</span> <span class="c">}</span>
@@ -103,13 +103,14 @@
     <div class="steps" style="grid-template-columns:repeat(2,1fr)">
       <div class="step" style="text-align:center">
         <div style="font-size:40px;font-weight:700;letter-spacing:-.02em" class="grad">~99%</div>
-        <p style="margin-top:8px">estimated grounded-accuracy score on our internal fact-checking benchmark (643 answers, checked claim-by-claim against source documents)</p>
+        <p style="margin-top:8px">estimated score under Google's official FACTS Grounding methodology, on our internal 643-answer fact-checking benchmark (checked claim-by-claim against source documents)</p>
       </div>
       <div class="step" style="text-align:center">
         <div style="font-size:40px;font-weight:700;letter-spacing:-.02em" class="grad">4 / 643</div>
         <p style="margin-top:8px">answers with a residual reasoning error — the only issues found; not one fabricated fact across the whole benchmark</p>
       </div>
     </div>
+    <p style="text-align:center;color:var(--muted);font-size:12.5px;max-width:600px;margin:20px auto 0">Under our own stricter internal measure — which also counts reasoning errors and output artifacts, not just literal source-matching — the score is 95.3%. We report both rather than only the flattering one.</p>
   </section>
 
   <section class="wrap">
