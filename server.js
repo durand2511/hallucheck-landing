@@ -64,11 +64,11 @@ async function handleWaitlist(req, res) {
   const cfg = smtpConfigFromEnv();
   if (cfg) {
     const html =
-      `<p>New HalluCheck waitlist signup</p>` +
+      `<p>New vanKonijnenburg waitlist signup</p>` +
       `<p><b>Email:</b> ${email}<br><b>Company:</b> ${company || "-"}<br><b>Use case:</b> ${useCase || "-"}</p>` +
       `<p>Total waitlist size: ${list.length}</p>`;
     try {
-      await sendMail(cfg, { to: NOTIFY_TO, subject: "🔎 New HalluCheck waitlist signup — " + email, html, fromName: "HalluCheck" });
+      await sendMail(cfg, { to: NOTIFY_TO, subject: "🔎 New vanKonijnenburg waitlist signup — " + email, html, fromName: "vanKonijnenburg" });
     } catch (e) {
       console.error("waitlist notify mail failed:", e.message);
     }

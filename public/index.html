@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HalluCheck — verify what your LLM says</title>
-<meta name="description" content="HalluCheck is a verification API that checks every claim your LLM makes against real evidence before it reaches your users.">
+<title>vanKonijnenburg — the LLM that doesn't hallucinate</title>
+<meta name="description" content="vanKonijnenburg is a large language model trained end-to-end for grounded answers — 0 fabricated facts and only 4 reasoning errors across 643 independently fact-checked answers.">
 <style>
   :root{
     --bg:#0a0b0f; --bg2:#111319; --card:#15171f; --border:#232634;
@@ -82,32 +82,43 @@
 <body>
   <header class="wrap">
     <div class="nav">
-      <div class="brand"><span class="dot"></span> HalluCheck</div>
+      <div class="brand"><span class="dot"></span> vanKonijnenburg</div>
       <a class="navlink" href="#waitlist">Join the waitlist</a>
     </div>
   </header>
 
   <section class="hero wrap">
     <span class="badge">● Early access opening soon</span>
-    <h1>Stop shipping <span class="grad">hallucinations.</span></h1>
-    <p class="sub">HalluCheck is a verification API that checks every claim your LLM makes against real evidence — citations, sources, and cross-checks — before it reaches your users.</p>
+    <h1>An LLM that <span class="grad">doesn't make things up.</span></h1>
+    <p class="sub">vanKonijnenburg is a large language model trained end-to-end for grounded answers. On our internal benchmark, 0 of 643 independently fact-checked answers contained a fabricated fact — only 4 contained a reasoning error.</p>
 
-    <div class="code"><span class="c">POST</span> <span class="k">/v1/verify</span>
-<span class="c">{</span>
-  <span class="k">"answer"</span>: <span class="c">"..."</span>, <span class="k">"sources"</span>: <span class="c">[...]</span> <span class="c">// optional</span>
-<span class="c">}</span>
-<span class="c">→</span> <span class="c">{</span> <span class="k">"score"</span>: <span class="s">0.94</span>, <span class="k">"claims"</span>: <span class="c">[ ...per-claim verdicts ]</span> <span class="c">}</span></div>
+    <div class="code"><span class="c">POST</span> <span class="k">/v1/chat/completions</span>
+<span class="c">{</span> <span class="k">"model"</span>: <span class="c">"vankonijnenburg-1"</span>, <span class="k">"messages"</span>: <span class="c">[...]</span> <span class="c">}</span>
+<span class="c">→</span> <span class="c">{</span> <span class="k">"choices"</span>: <span class="c">[...]</span>, <span class="k">"grounding_score"</span>: <span class="s">0.99</span> <span class="c">}</span></div>
 
     <a class="navlink" style="padding:12px 26px;font-size:15px;border-color:var(--accent2)" href="#waitlist">Get early access →</a>
   </section>
 
   <section class="wrap">
-    <h2 class="section-title">How it works</h2>
-    <p class="section-sub">Built on the Chain-of-Evidence method, with a fine-tuned grounding model trained specifically to catch reasoning errors that generic LLM judges miss.</p>
+    <div class="steps" style="grid-template-columns:repeat(2,1fr)">
+      <div class="step" style="text-align:center">
+        <div style="font-size:40px;font-weight:700;letter-spacing:-.02em" class="grad">~99%</div>
+        <p style="margin-top:8px">estimated grounded-accuracy score on our internal fact-checking benchmark (643 answers, checked claim-by-claim against source documents)</p>
+      </div>
+      <div class="step" style="text-align:center">
+        <div style="font-size:40px;font-weight:700;letter-spacing:-.02em" class="grad">4 / 643</div>
+        <p style="margin-top:8px">answers with a residual reasoning error — the only issues found; not one fabricated fact across the whole benchmark</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2 class="section-title">Why it doesn't hallucinate</h2>
+    <p class="section-sub">Grounding is trained in, not bolted on afterward with a separate checking step.</p>
     <div class="steps">
-      <div class="step"><div class="n">1</div><h3>Send an answer</h3><p>Your app calls <code>/v1/verify</code> with the model's answer — sources are optional, HalluCheck can fetch its own evidence.</p></div>
-      <div class="step"><div class="n">2</div><h3>Claim-by-claim verification</h3><p>Every checkable claim is extracted and matched against evidence — citation checks, numeric checks, and entailment against the source.</p></div>
-      <div class="step"><div class="n">3</div><h3>Get a verdict</h3><p>You get back a score plus a per-claim breakdown — supported, contradicted, or unverifiable — so you know exactly what to trust.</p></div>
+      <div class="step"><div class="n">1</div><h3>Trained on real evidence</h3><p>Every training example follows a Chain-of-Evidence: each claim traces back to a verifiable source, not just plausible-sounding text.</p></div>
+      <div class="step"><div class="n">2</div><h3>Tuned to reason, not guess</h3><p>Direct Preference Optimization specifically targets the reasoning errors that generic LLM judges miss — scope mismatches, category errors, misapplied facts.</p></div>
+      <div class="step"><div class="n">3</div><h3>Independently verified</h3><p>Every answer in our benchmark was checked claim-by-claim against its source document, by hand — not a single automated pass/fail score.</p></div>
     </div>
   </section>
 
@@ -116,7 +127,7 @@
     <p class="section-sub">Usage-based, like the LLM APIs you already integrate with.</p>
     <div class="pricing">
       <span class="tag">Early access</span>
-      <div class="price">Pay per verification call <small>— exact pricing announced at launch</small></div>
+      <div class="price">Pay per message <small>— exact pricing announced at launch</small></div>
       <p>No monthly minimum. Waitlist members get preferential early pricing and priority onboarding.</p>
     </div>
   </section>
@@ -124,7 +135,7 @@
   <section id="waitlist" class="wrap">
     <div class="form-card">
       <h2>Join the waitlist</h2>
-      <p class="lead">We're onboarding a small group of early users first. Leave your details and we'll reach out.</p>
+      <p class="lead">vanKonijnenburg — the grounded LLM. We're onboarding a small group of early users first. Leave your details and we'll reach out.</p>
       <form id="wlForm">
         <label for="email">Email *</label>
         <input id="email" name="email" type="email" required placeholder="you@company.com">
@@ -139,7 +150,7 @@
   </section>
 
   <footer class="wrap">
-    Questions? <a href="mailto:durand2511@gmail.com">durand2511@gmail.com</a> — HalluCheck
+    Questions? <a href="mailto:durand2511@gmail.com">durand2511@gmail.com</a> — vanKonijnenburg
   </footer>
 
 <script>
