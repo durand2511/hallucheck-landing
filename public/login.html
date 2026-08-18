@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inloggen — vanKonijnenburg</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header class="topbar wrap">
+    <div class="nav">
+      <a class="brand" href="/"><span class="dot"></span> vanKonijnenburg</a>
+      <a class="navlink" href="/register.html">Nog geen account? Registreren</a>
+    </div>
+  </header>
+
+  <div class="auth-shell">
+    <div class="card">
+      <h2>Inloggen</h2>
+      <label for="email">E-mailadres</label>
+      <input id="email" type="email" placeholder="jij@kantoor.nl">
+      <label for="password">Wachtwoord</label>
+      <input id="password" type="password" placeholder="••••••••">
+      <button class="btn" id="loginBtn" style="width:100%;margin-top:22px">Inloggen</button>
+      <div id="msg" class="msg"></div>
+    </div>
+  </div>
+
+<script>
+document.getElementById('loginBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('msg');
+  msg.className = 'msg'; msg.textContent = '';
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: document.getElementById('email').value.trim(), password: document.getElementById('password').value }),
+    });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Inloggen mislukt.');
+    window.location.href = '/dashboard.html';
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  } finally {
+    btn.disabled = false;
+  }
+});
+document.getElementById('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('loginBtn').click(); });
+</script>
+</body>
+</html>

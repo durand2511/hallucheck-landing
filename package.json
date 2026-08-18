@@ -1,5 +1,5 @@
 {
-  "name": "hallucheck-landing",
+  "name": "vankonijnenburg",
   "version": "1.0.0",
   "private": true,
   "main": "server.js",
@@ -8,5 +8,15 @@
   },
   "engines": {
     "node": ">=18"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.6",
+    "express": "^4.19.2",
+    "express-async-errors": "^3.1.1",
+    "express-rate-limit": "^8.6.2",
+    "multer": "^2.0.1",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.12.0",
+    "stripe": "^16.8.0"
   }
 }

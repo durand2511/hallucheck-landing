@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — vanKonijnenburg</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="sidebar">
+      <div class="brand" style="padding:8px 14px 20px"><span class="dot"></span> vanKonijnenburg</div>
+      <a href="#documents" data-view="documents" class="active">Documenten</a>
+      <a href="#usage" data-view="usage">Gebruik &amp; facturatie</a>
+      <a href="#employees" data-view="employees" id="employeesLink" style="display:none">Werknemers</a>
+      <div style="flex:1"></div>
+      <a href="#" id="logoutLink">Uitloggen</a>
+    </nav>
+
+    <main class="main">
+      <div id="view-documents">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <h1 style="font-size:22px">Documenten</h1>
+          <span class="badge plan" id="planBadge"></span>
+        </div>
+
+        <div class="dropzone" id="dropzone">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+          <div>Sleep een document hierheen, of klik om te uploaden</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">PDF of tekstbestand, max 50MB</div>
+          <input type="file" id="fileInput" accept=".pdf,.txt,.md" style="display:none">
+        </div>
+        <div id="uploadMsg" class="msg"></div>
+
+        <div class="card" style="margin-top:20px;padding:10px 8px">
+          <div id="docList"></div>
+        </div>
+      </div>
+
+      <div id="view-doc-detail" style="display:none">
+        <button class="btn secondary" id="backToDocs" style="margin-bottom:16px">← Terug naar documenten</button>
+        <h1 id="docTitle" style="font-size:20px"></h1>
+        <p class="muted" id="docMeta" style="margin-top:0"></p>
+
+        <div class="chat" id="chatThread"></div>
+
+        <div class="card" style="margin-top:16px">
+          <label for="questionInput">Stel een vraag over dit document</label>
+          <textarea id="questionInput" placeholder="Bijv. Klopt de opgegeven omzet met de onderliggende cijfers in het document?"></textarea>
+          <button class="btn" id="askBtn" style="margin-top:12px">Vraag stellen</button>
+          <div id="askMsg" class="msg"></div>
+        </div>
+      </div>
+
+      <div id="view-usage" style="display:none">
+        <h1 style="font-size:22px">Gebruik &amp; facturatie</h1>
+        <div class="card" id="usageCard"></div>
+      </div>
+
+      <div id="view-employees" style="display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+          <h1 style="font-size:22px">Werknemers</h1>
+          <button class="btn" id="addEmpBtn">+ Werknemer toevoegen</button>
+        </div>
+        <div class="card" id="empList"></div>
+      </div>
+    </main>
+  </div>
+
+<script>
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let me = null;
+let currentDocId = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Er ging iets mis.');
+  return data;
+}
+
+function showView(name) {
+  ['documents', 'doc-detail', 'usage', 'employees'].forEach((v) => {
+    document.getElementById('view-' + v).style.display = v === name ? 'block' : 'none';
+  });
+  document.querySelectorAll('.sidebar a[data-view]').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
+}
+
+async function init() {
+  try {
+    me = await api('/api/me');
+  } catch {
+    window.location.href = '/login.html';
+    return;
+  }
+  document.getElementById('planBadge').textContent = me.company.plan.charAt(0).toUpperCase() + me.company.plan.slice(1);
+  if (me.user.role === 'ceo') document.getElementById('employeesLink').style.display = 'block';
+  loadDocuments();
+
+  document.querySelectorAll('.sidebar a[data-view]').forEach((a) => a.addEventListener('click', (e) => {
+    e.preventDefault();
+    showView(a.dataset.view);
+    if (a.dataset.view === 'usage') loadUsage();
+    if (a.dataset.view === 'employees') loadEmployees();
+  }));
+  document.getElementById('logoutLink').addEventListener('click', async (e) => {
+    e.preventDefault();
+    await api('/api/logout', { method: 'POST' });
+    window.location.href = '/login.html';
+  });
+}
+
+// --- Documents ---
+async function loadDocuments() {
+  const { documents } = await api('/api/documents');
+  const list = document.getElementById('docList');
+  list.innerHTML = documents.length
+    ? documents.map((d) => `
+      <div class="doc-list-item" data-id="${d.id}">
+        <div>
+          <div class="fname">${esc(d.filename)}</div>
+          <div class="fmeta">${d.complexity === 'complex' ? 'Complex document' : 'Klein document'} · ${new Date(d.created_at).toLocaleDateString('nl-NL')}</div>
+        </div>
+        <span class="badge ${d.status === 'done' ? 'ok' : d.status === 'failed' ? '' : 'warn'}">${d.status}</span>
+      </div>`).join('')
+    : `<p class="muted" style="padding:16px">Nog geen documenten geüpload.</p>`;
+  list.querySelectorAll('.doc-list-item').forEach((el) => el.addEventListener('click', () => openDocument(Number(el.dataset.id))));
+}
+
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', () => fileInput.click());
+['dragover', 'dragleave', 'drop'].forEach((evt) => dropzone.addEventListener(evt, (e) => {
+  e.preventDefault();
+  dropzone.classList.toggle('drag', evt === 'dragover');
+}));
+dropzone.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]); });
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) uploadFile(fileInput.files[0]); });
+
+async function uploadFile(file) {
+  const msg = document.getElementById('uploadMsg');
+  msg.className = 'msg'; msg.textContent = 'Uploaden...';
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/api/documents', { method: 'POST', body: fd });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Upload mislukt.');
+    msg.textContent = data.overage
+      ? `Geüpload — dit document valt buiten je pakket-limiet (+€${(data.extraCostEuroCents / 100).toFixed(2)}).`
+      : 'Geüpload.';
+    msg.className = 'msg ok';
+    loadDocuments();
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  }
+}
+
+async function openDocument(id) {
+  currentDocId = id;
+  const { document: doc } = await api(`/api/documents/${id}`);
+  document.getElementById('docTitle').textContent = doc.filename;
+  document.getElementById('docMeta').textContent = `${doc.complexity === 'complex' ? 'Complex document' : 'Klein document'} · geüpload op ${new Date(doc.created_at).toLocaleString('nl-NL')}`;
+  showView('doc-detail');
+  await loadThread();
+}
+
+function splitSentences(text) {
+  return (text.match(/[^.!?]+[.!?]+|\S+$/g) || [text]).map((s) => s.trim()).filter(Boolean);
+}
+
+function renderAnswer(answer, citations) {
+  if (!citations || !citations.length) return `<p>${esc(answer)}</p>`;
+  const sentences = splitSentences(answer);
+  const parts = sentences.map((s, i) => {
+    const c = citations[i];
+    if (!c) return esc(s);
+    const cls = c.grounded ? 'grounded' : 'ungrounded';
+    return `<span class="sentence ${cls}" data-idx="${i}">${esc(s)}</span>`;
+  });
+  const pops = citations.map((c, i) => `
+    <div class="cite-pop" id="pop-${i}">
+      ${c.grounded
+        ? `<div class="quote">"${esc(c.quote)}"</div>`
+        : `<div class="flag">⚠ Geen onderbouwing gevonden in het document — controleer deze uitspraak, mogelijk een redeneerfout of hallucinatie van het model.</div>`}
+    </div>`).join('');
+  return `<p>${parts.join(' ')}</p>${pops}`;
+}
+
+async function loadThread() {
+  const { queries } = await api(`/api/documents/${currentDocId}/queries`);
+  renderThread(queries);
+}
+
+function renderThread(queries) {
+  const thread = document.getElementById('chatThread');
+  thread.innerHTML = queries.map((q) => `
+    <div class="qa">
+      <div class="q">${esc(q.question)}</div>
+      ${q.status === 'pending' ? `<div class="coldstart"><span class="spinner"></span> Model analyseert (bij een koude start van de GPU kan dit 1-2 minuten duren)...</div>` : ''}
+      ${q.status === 'done' ? renderAnswer(q.answer, q.citations_json) : ''}
+      ${q.status === 'failed' ? `<p class="msg err">Analyse mislukt — probeer het opnieuw.</p>` : ''}
+    </div>`).join('') || `<p class="muted">Nog geen vragen gesteld over dit document.</p>`;
+
+  thread.querySelectorAll('.sentence').forEach((el) => el.addEventListener('click', () => {
+    const qaEl = el.closest('.qa');
+    const pop = qaEl.querySelector('#pop-' + el.dataset.idx);
+    qaEl.querySelectorAll('.cite-pop').forEach((p) => { if (p !== pop) p.classList.remove('open'); });
+    pop.classList.toggle('open');
+  }));
+}
+
+document.getElementById('backToDocs').addEventListener('click', () => { showView('documents'); loadDocuments(); });
+
+document.getElementById('askBtn').addEventListener('click', async () => {
+  const input = document.getElementById('questionInput');
+  const question = input.value.trim();
+  if (!question) return;
+  const btn = document.getElementById('askBtn');
+  const msg = document.getElementById('askMsg');
+  btn.disabled = true; msg.className = 'msg'; msg.textContent = '';
+  input.value = '';
+
+  const thread = document.getElementById('chatThread');
+  const placeholder = document.createElement('div');
+  placeholder.className = 'qa';
+  placeholder.innerHTML = `<div class="q">${esc(question)}</div><div class="coldstart"><span class="spinner"></span> Model analyseert (bij een koude start van de GPU kan dit 1-2 minuten duren)...</div>`;
+  thread.appendChild(placeholder);
+
+  try {
+    await api(`/api/documents/${currentDocId}/query`, { method: 'POST', body: JSON.stringify({ question }) });
+    await loadThread();
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+    placeholder.remove();
+  } finally {
+    btn.disabled = false;
+  }
+});
+document.getElementById('questionInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('askBtn').click(); }
+});
+
+// --- Usage ---
+async function loadUsage() {
+  const u = await api('/api/usage');
+  const pctComplex = u.complexIncluded ? Math.min(100, (u.complexUsed / u.complexIncluded) * 100) : 0;
+  const kleinPct = typeof u.kleinIncluded === 'number' ? Math.min(100, (u.kleinUsed / u.kleinIncluded) * 100) : 0;
+  document.getElementById('usageCard').innerHTML = `
+    <p class="muted" style="margin-top:0">Periode: ${u.month} · Pakket: ${u.plan}</p>
+    <label>Complexe documenten: ${u.complexUsed} / ${u.complexIncluded}</label>
+    <div class="usage-bar"><div class="fill" style="width:${pctComplex}%"></div></div>
+    <label style="margin-top:22px">Kleine documenten: ${u.kleinUsed} / ${u.kleinIncluded}</label>
+    <div class="usage-bar"><div class="fill" style="width:${kleinPct}%"></div></div>
+    ${u.overageEuroCents > 0 ? `<p style="margin-top:22px" class="msg warn">Extra kosten deze maand: €${(u.overageEuroCents / 100).toFixed(2)} (buiten pakket-limiet)</p>` : ''}
+  `;
+}
+
+// --- Employees ---
+async function loadEmployees() {
+  const { employees } = await api('/api/employees');
+  document.getElementById('empList').innerHTML = employees.map((e) => `
+    <div class="emp-row">
+      <div>
+        <div style="font-weight:500">${esc(e.name || e.email)} ${e.role === 'ceo' ? '<span class="badge plan" style="margin-left:6px">CEO</span>' : ''}</div>
+        <div class="muted" style="font-size:13px">${esc(e.email)}</div>
+      </div>
+      ${e.role === 'employee' ? `<button class="btn danger" data-id="${e.id}" style="padding:6px 12px;font-size:13px">Verwijderen</button>` : ''}
+    </div>`).join('');
+  document.getElementById('empList').querySelectorAll('button[data-id]').forEach((btn) => btn.addEventListener('click', async () => {
+    if (!confirm('Werknemer verwijderen?')) return;
+    await api(`/api/employees/${btn.dataset.id}`, { method: 'DELETE' });
+    loadEmployees();
+  }));
+}
+document.getElementById('addEmpBtn').addEventListener('click', async () => {
+  const email = prompt('E-mailadres van de nieuwe werknemer:');
+  if (!email) return;
+  const name = prompt('Naam:') || '';
+  const password = prompt('Tijdelijk wachtwoord (min. 8 tekens):');
+  if (!password) return;
+  try {
+    await api('/api/employees', { method: 'POST', body: JSON.stringify({ email, name, password }) });
+    loadEmployees();
+  } catch (err) {
+    alert(err.message);
+  }
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
 node_modules/
 .env
-data/waitlist.json
+data/
 .DS_Store

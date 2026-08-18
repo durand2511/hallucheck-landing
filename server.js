@@ -1,12 +1,40 @@
-const http = require("node:http");
-const fs = require("node:fs");
 const path = require("node:path");
+const fs = require("node:fs");
+require("express-async-errors"); // without this, a thrown/rejected error inside an async route
+// handler crashes the whole process (Express 4 doesn't forward async errors on its own) — that
+// would take the entire multi-tenant server down over a single bad request from one company.
+const express = require("express");
+const cookieParser = require("cookie-parser");
+const rateLimit = require("express-rate-limit");
+const { pool } = require("./lib/db.js");
+const { getSessionUser } = require("./lib/auth.js");
 const { sendMail, smtpConfigFromEnv } = require("./lib/smtp.js");
+const { startIdleWatcher } = require("./lib/runpod.js");
 
 const PORT = process.env.PORT || 8092;
 const NOTIFY_TO = process.env.CONTACT_EMAIL || "durand2511@gmail.com";
 const DATA_FILE = path.join(__dirname, "data", "waitlist.json");
-const PUBLIC_DIR = path.join(__dirname, "public");
+
+const app = express();
+app.set("trust proxy", 1); // Render sits behind a reverse proxy — needed for correct client IPs in rate limiting
+
+// The Stripe webhook route needs the untouched raw request body to verify its signature (see
+// routes/billing.js), so it must be excluded from the global JSON parser or that verification
+// would always fail — express.json() would already have consumed/parsed the stream by then.
+const jsonParser = express.json({ limit: "2mb" });
+app.use((req, res, next) => (req.path === "/api/billing/webhook" ? next() : jsonParser(req, res, next)));
+app.use(cookieParser());
+app.use("/api/", rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: true, legacyHeaders: false }));
+
+app.use(async (req, res, next) => {
+  req.user = await getSessionUser(req.cookies?.session).catch(() => null);
+  next();
+});
+
+app.use(require("./routes/auth.js"));
+app.use(require("./routes/employees.js"));
+app.use(require("./routes/documents.js"));
+app.use(require("./routes/billing.js"));
 
 function loadWaitlist() {
   try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch { return []; }
@@ -15,45 +43,13 @@ function saveWaitlist(list) {
   fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
   fs.writeFileSync(DATA_FILE, JSON.stringify(list, null, 2));
 }
-
-function readBody(req) {
-  return new Promise((resolve, reject) => {
-    let body = "";
-    req.on("data", (c) => { body += c; if (body.length > 1e6) req.destroy(); });
-    req.on("end", () => { try { resolve(body ? JSON.parse(body) : {}); } catch (e) { reject(e); } });
-    req.on("error", reject);
-  });
-}
-
-function json(res, status, obj) {
-  const body = JSON.stringify(obj);
-  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body) });
-  res.end(body);
-}
-
 const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
-const MIME = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".js": "text/javascript", ".svg": "image/svg+xml", ".png": "image/png", ".ico": "image/x-icon" };
-
-function serveStatic(req, res) {
-  let p = req.url.split("?")[0];
-  if (p === "/") p = "/index.html";
-  const full = path.join(PUBLIC_DIR, path.normalize(p));
-  if (!full.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end("forbidden"); }
-  fs.readFile(full, (err, data) => {
-    if (err) { res.writeHead(404); return res.end("not found"); }
-    res.writeHead(200, { "Content-Type": MIME[path.extname(full)] || "application/octet-stream" });
-    res.end(data);
-  });
-}
-
-async function handleWaitlist(req, res) {
-  let body;
-  try { body = await readBody(req); } catch { return json(res, 400, { ok: false, error: "Invalid request body." }); }
-  const email = String(body?.email ?? "").trim().slice(0, 200);
-  const useCase = String(body?.useCase ?? "").trim().slice(0, 1000);
-  const company = String(body?.company ?? "").trim().slice(0, 200);
-  if (!isValidEmail(email)) return json(res, 400, { ok: false, error: "Please enter a valid email address." });
+app.post("/api/waitlist", async (req, res) => {
+  const email = String(req.body?.email ?? "").trim().slice(0, 200);
+  const useCase = String(req.body?.useCase ?? "").trim().slice(0, 1000);
+  const company = String(req.body?.company ?? "").trim().slice(0, 200);
+  if (!isValidEmail(email)) return res.status(400).json({ ok: false, error: "Please enter a valid email address." });
 
   const list = loadWaitlist();
   if (!list.some((e) => e.email.toLowerCase() === email.toLowerCase())) {
@@ -63,24 +59,25 @@ async function handleWaitlist(req, res) {
 
   const cfg = smtpConfigFromEnv();
   if (cfg) {
-    const html =
-      `<p>New vanKonijnenburg waitlist signup</p>` +
-      `<p><b>Email:</b> ${email}<br><b>Company:</b> ${company || "-"}<br><b>Use case:</b> ${useCase || "-"}</p>` +
-      `<p>Total waitlist size: ${list.length}</p>`;
-    try {
-      await sendMail(cfg, { to: NOTIFY_TO, subject: "🔎 New vanKonijnenburg waitlist signup — " + email, html, fromName: "vanKonijnenburg" });
-    } catch (e) {
-      console.error("waitlist notify mail failed:", e.message);
-    }
+    const html = `<p>New vanKonijnenburg waitlist signup</p><p><b>Email:</b> ${email}<br><b>Company:</b> ${company || "-"}<br><b>Use case:</b> ${useCase || "-"}</p><p>Total waitlist size: ${list.length}</p>`;
+    sendMail(cfg, { to: NOTIFY_TO, subject: "🔎 New vanKonijnenburg waitlist signup — " + email, html, fromName: "vanKonijnenburg" })
+      .catch((e) => console.error("waitlist notify mail failed:", e.message));
   }
-  json(res, 200, { ok: true });
-}
-
-const server = http.createServer(async (req, res) => {
-  if (req.method === "POST" && req.url === "/api/waitlist") return handleWaitlist(req, res);
-  if (req.method === "GET" && req.url === "/healthz") return json(res, 200, { ok: true });
-  if (req.method === "GET") return serveStatic(req, res);
-  res.writeHead(405); res.end("method not allowed");
+  res.json({ ok: true });
 });
 
-server.listen(PORT, () => console.log("hallucheck-landing listening on :" + PORT));
+app.get("/healthz", (req, res) => res.json({ ok: true }));
+
+app.use(express.static(path.join(__dirname, "public")));
+
+app.use((err, req, res, next) => {
+  console.error(err);
+  res.status(500).json({ error: "Internal server error" });
+});
+
+async function main() {
+  await pool.query("SELECT 1"); // fail fast if DB is unreachable
+  startIdleWatcher();
+  app.listen(PORT, () => console.log("vanKonijnenburg listening on :" + PORT));
+}
+main();

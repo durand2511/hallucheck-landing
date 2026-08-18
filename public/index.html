@@ -83,7 +83,10 @@
   <header class="wrap">
     <div class="nav">
       <div class="brand"><span class="dot"></span> vanKonijnenburg</div>
-      <a class="navlink" href="#waitlist">Join the waitlist</a>
+      <div style="display:flex;gap:10px">
+        <a class="navlink" href="/login.html">Inloggen</a>
+        <a class="navlink" style="border-color:var(--accent2)" href="/register.html">Start gratis proefperiode →</a>
+      </div>
     </div>
   </header>
 
@@ -123,13 +126,28 @@
     </div>
   </section>
 
-  <section class="wrap">
-    <h2 class="section-title">Pricing</h2>
-    <p class="section-sub">Usage-based, like the LLM APIs you already integrate with.</p>
-    <div class="pricing">
-      <span class="tag">Early access</span>
-      <div class="price">Pay per message <small>— exact pricing announced at launch</small></div>
-      <p>No monthly minimum. Waitlist members get preferential early pricing and priority onboarding.</p>
+  <section class="wrap" id="pricing">
+    <h2 class="section-title">Voor accountants- en audit-kantoren</h2>
+    <p class="section-sub">Upload een document, stel er vragen over, en krijg per antwoord het exacte citaat uit het document terug — zodat elke uitspraak zelf te controleren is.</p>
+    <div class="steps">
+      <div class="step" style="text-align:center;border-color:var(--border)">
+        <div class="pricing-tag" style="font-size:12px;color:var(--muted);margin-bottom:8px">Starter — 1-5 fte</div>
+        <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">€295<small style="font-size:14px;color:var(--muted);font-weight:400">/mnd</small></div>
+        <p style="margin-top:12px">25 complexe + 50 kleine documenten/mnd<br><span class="muted">€10 per extra complex document</span></p>
+      </div>
+      <div class="step" style="text-align:center;border-color:var(--accent2)">
+        <div class="pricing-tag" style="font-size:12px;color:var(--accent2);margin-bottom:8px">Professional — 6-25 fte</div>
+        <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">€695<small style="font-size:14px;color:var(--muted);font-weight:400">/mnd</small></div>
+        <p style="margin-top:12px">80 complexe + 150 kleine documenten/mnd<br><span class="muted">€7,50 per extra complex document</span></p>
+      </div>
+      <div class="step" style="text-align:center;border-color:var(--border)">
+        <div class="pricing-tag" style="font-size:12px;color:var(--muted);margin-bottom:8px">Enterprise — audit-praktijken</div>
+        <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">€1.495<small style="font-size:14px;color:var(--muted);font-weight:400">/mnd</small></div>
+        <p style="margin-top:12px">200 complexe + onbeperkt kleine documenten/mnd<br><span class="muted">€5 per extra complex document</span></p>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:32px">
+      <a class="navlink" style="padding:12px 26px;font-size:15px;border-color:var(--accent2)" href="/register.html">Start gratis proefperiode →</a>
     </div>
   </section>
 
