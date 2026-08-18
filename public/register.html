@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Registreren — vanKonijnenburg</title>
 <link rel="stylesheet" href="/app.css">
-<script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
   <header class="topbar wrap">
@@ -16,9 +15,9 @@
   </header>
 
   <div class="auth-shell">
-    <div id="step1" class="card">
+    <div class="card">
       <h2>Account aanmaken</h2>
-      <p class="muted" style="margin-top:0">Voor accountants- en audit-kantoren die documenten willen laten controleren op feitelijke onderbouwing.</p>
+      <p class="muted" style="margin-top:0">Voor accountants- en audit-kantoren die documenten willen laten controleren op feitelijke onderbouwing. Je hebt direct toegang — betalen doe je pas daarna, vanuit je dashboard.</p>
 
       <label for="companyName">Bedrijfsnaam</label>
       <input id="companyName" placeholder="Jansen Accountants B.V.">
@@ -33,17 +32,8 @@
       <label for="password">Wachtwoord (min. 8 tekens)</label>
       <input id="password" type="password" placeholder="••••••••">
 
-      <button class="btn" id="toStep2" style="width:100%;margin-top:22px">Doorgaan naar betaling →</button>
-      <div id="msg1" class="msg"></div>
-    </div>
-
-    <div id="step2" class="card" style="display:none">
-      <h2>Betaalmethode</h2>
-      <p class="muted" style="margin-top:0" id="planSummary"></p>
-      <div id="payment-element" style="margin:18px 0"></div>
-      <button class="btn" id="pay" style="width:100%">Bevestigen en starten</button>
-      <button class="btn secondary" id="back" style="width:100%;margin-top:10px">← Terug</button>
-      <div id="msg2" class="msg"></div>
+      <button class="btn" id="createBtn" style="width:100%;margin-top:22px">Account aanmaken →</button>
+      <div id="msg" class="msg"></div>
     </div>
   </div>
 
@@ -67,10 +57,8 @@ Object.entries(PLANS).forEach(([key, p]) => {
   grid.appendChild(el);
 });
 
-let stripe, elements, companyId;
-
-document.getElementById('toStep2').addEventListener('click', async () => {
-  const msg = document.getElementById('msg1');
+document.getElementById('createBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('msg');
   msg.className = 'msg'; msg.textContent = '';
   const body = {
     companyName: document.getElementById('companyName').value.trim(),
@@ -81,48 +69,14 @@ document.getElementById('toStep2').addEventListener('click', async () => {
   };
   if (!body.companyName || !body.email || !body.password) { msg.textContent = 'Vul alle verplichte velden in.'; msg.className = 'msg err'; return; }
 
-  const btn = document.getElementById('toStep2');
+  const btn = document.getElementById('createBtn');
   btn.disabled = true;
   try {
     const r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Registratie mislukt.');
-    companyId = data.company.id;
-
-    const si = await fetch('/api/billing/setup-intent', { method: 'POST' }).then((r) => r.json());
-    stripe = Stripe(si.publishableKey);
-    elements = stripe.elements({ clientSecret: si.clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#7c9bff', colorBackground: '#111319', colorText: '#eef0f5', borderRadius: '10px' } } });
-    elements.create('payment').mount('#payment-element');
-
-    document.getElementById('planSummary').textContent = `${PLANS[selectedPlan].label} — €${PLANS[selectedPlan].price}/maand`;
-    document.getElementById('step1').style.display = 'none';
-    document.getElementById('step2').style.display = 'block';
-  } catch (err) {
-    msg.textContent = err.message; msg.className = 'msg err';
-  } finally {
-    btn.disabled = false;
-  }
-});
-
-document.getElementById('back').addEventListener('click', () => {
-  document.getElementById('step2').style.display = 'none';
-  document.getElementById('step1').style.display = 'block';
-});
-
-document.getElementById('pay').addEventListener('click', async () => {
-  const msg = document.getElementById('msg2');
-  msg.className = 'msg'; msg.textContent = '';
-  const btn = document.getElementById('pay');
-  btn.disabled = true;
-  try {
-    const { error, setupIntent } = await stripe.confirmSetup({ elements, redirect: 'if_required' });
-    if (error) throw new Error(error.message);
-    const r = await fetch('/api/billing/subscribe', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paymentMethodId: setupIntent.payment_method }),
-    });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Abonnement starten mislukt.');
+    // Account is aangemaakt en je bent al ingelogd (session-cookie) — betalen gebeurt pas later,
+    // vanuit het dashboard, niet als verplichte stap vóór toegang.
     window.location.href = '/dashboard.html';
   } catch (err) {
     msg.textContent = err.message; msg.className = 'msg err';
@@ -130,6 +84,7 @@ document.getElementById('pay').addEventListener('click', async () => {
     btn.disabled = false;
   }
 });
+document.getElementById('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('createBtn').click(); });
 </script>
 </body>
 </html>
