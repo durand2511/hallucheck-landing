@@ -76,7 +76,8 @@ app.use((err, req, res, next) => {
 });
 
 async function main() {
-  await pool.query("SELECT 1"); // fail fast if DB is unreachable
+  const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
+  await pool.query(schema); // idempotent (CREATE TABLE/INDEX IF NOT EXISTS) — safe to run every boot
   startIdleWatcher();
   app.listen(PORT, () => console.log("vanKonijnenburg listening on :" + PORT));
 }
