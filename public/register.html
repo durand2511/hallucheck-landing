@@ -1,82 +1,56 @@
 <!doctype html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Registreren — vanKonijnenburg</title>
+<title>Register — vanKonijnenburg</title>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <header class="topbar wrap">
     <div class="nav">
       <a class="brand" href="/"><span class="dot"></span> vanKonijnenburg</a>
-      <a class="navlink" href="/login.html">Al een account? Inloggen</a>
+      <a class="navlink" href="/login.html">Already have an account? Log in</a>
     </div>
   </header>
 
   <div class="auth-shell">
     <div class="card">
-      <h2>Account aanmaken</h2>
-      <p class="muted" style="margin-top:0">Voor accountants- en audit-kantoren die documenten willen laten controleren op feitelijke onderbouwing. Je hebt direct toegang — betalen doe je pas daarna, vanuit je dashboard.</p>
+      <h2>Create your account</h2>
+      <p class="muted" style="margin-top:0">You get access right away. Pick a plan later, when you activate billing from your dashboard.</p>
 
-      <label for="companyName">Bedrijfsnaam</label>
-      <input id="companyName" placeholder="Jansen Accountants B.V.">
-
-      <label>Pakket</label>
-      <div class="plan-grid" id="planGrid"></div>
-
-      <label for="name">Jouw naam</label>
-      <input id="name" placeholder="Voornaam Achternaam">
-      <label for="email">E-mailadres (dit wordt je CEO/eigenaar-account)</label>
-      <input id="email" type="email" placeholder="jij@kantoor.nl">
-      <label for="password">Wachtwoord (min. 8 tekens)</label>
+      <label for="companyName">Company name</label>
+      <input id="companyName" placeholder="Acme Financial B.V.">
+      <label for="name">Your name</label>
+      <input id="name" placeholder="First Last">
+      <label for="email">Email address (this becomes your CEO/owner account)</label>
+      <input id="email" type="email" placeholder="you@company.com">
+      <label for="password">Password (min. 8 characters)</label>
       <input id="password" type="password" placeholder="••••••••">
 
-      <button class="btn" id="createBtn" style="width:100%;margin-top:22px">Account aanmaken →</button>
+      <button class="btn" id="createBtn" style="width:100%;margin-top:22px">Create account →</button>
       <div id="msg" class="msg"></div>
     </div>
   </div>
 
 <script>
-const PLANS = {
-  starter: { label: "Starter", price: 295, desc: "25 complexe + 50 kleine docs/mnd — 1-5 fte" },
-  professional: { label: "Professional", price: 695, desc: "80 complexe + 150 kleine docs/mnd — 6-25 fte" },
-  enterprise: { label: "Enterprise", price: 1495, desc: "200 complexe + onbeperkt kleine docs/mnd — grote kantoren" },
-};
-let selectedPlan = "professional";
-const grid = document.getElementById('planGrid');
-Object.entries(PLANS).forEach(([key, p]) => {
-  const el = document.createElement('div');
-  el.className = 'plan-card' + (key === selectedPlan ? ' selected' : '');
-  el.dataset.plan = key;
-  el.innerHTML = `<div class="plabel">${p.label}</div><div class="pprice">€${p.price}<small>/mnd</small></div><div class="pdesc">${p.desc}</div>`;
-  el.addEventListener('click', () => {
-    selectedPlan = key;
-    [...grid.children].forEach((c) => c.classList.toggle('selected', c.dataset.plan === key));
-  });
-  grid.appendChild(el);
-});
-
 document.getElementById('createBtn').addEventListener('click', async () => {
   const msg = document.getElementById('msg');
   msg.className = 'msg'; msg.textContent = '';
   const body = {
     companyName: document.getElementById('companyName').value.trim(),
-    plan: selectedPlan,
     name: document.getElementById('name').value.trim(),
     email: document.getElementById('email').value.trim(),
     password: document.getElementById('password').value,
   };
-  if (!body.companyName || !body.email || !body.password) { msg.textContent = 'Vul alle verplichte velden in.'; msg.className = 'msg err'; return; }
+  if (!body.companyName || !body.email || !body.password) { msg.textContent = 'Please fill in all required fields.'; msg.className = 'msg err'; return; }
 
   const btn = document.getElementById('createBtn');
   btn.disabled = true;
   try {
     const r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Registratie mislukt.');
-    // Account is aangemaakt en je bent al ingelogd (session-cookie) — betalen gebeurt pas later,
-    // vanuit het dashboard, niet als verplichte stap vóór toegang.
+    if (!r.ok) throw new Error(data.error || 'Registration failed.');
     window.location.href = '/dashboard.html';
   } catch (err) {
     msg.textContent = err.message; msg.className = 'msg err';

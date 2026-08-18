@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="nl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,30 +11,30 @@
   <div class="app-shell">
     <nav class="sidebar">
       <div class="brand" style="padding:8px 14px 20px"><span class="dot"></span> vanKonijnenburg</div>
-      <a href="#documents" data-view="documents" class="active">Documenten</a>
-      <a href="#usage" data-view="usage">Gebruik &amp; facturatie</a>
-      <a href="#employees" data-view="employees" id="employeesLink" style="display:none">Werknemers</a>
+      <a href="#documents" data-view="documents" class="active">Documents</a>
+      <a href="#usage" data-view="usage">Usage &amp; billing</a>
+      <a href="#employees" data-view="employees" id="employeesLink" style="display:none">Employees</a>
       <div style="flex:1"></div>
-      <a href="#" id="logoutLink">Uitloggen</a>
+      <a href="#" id="logoutLink">Log out</a>
     </nav>
 
     <main class="main">
       <div id="view-documents">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-          <h1 style="font-size:22px">Documenten</h1>
+          <h1 style="font-size:22px">Documents</h1>
           <span class="badge plan" id="planBadge"></span>
         </div>
 
         <div class="card" id="billingBanner" style="display:none;margin-bottom:18px;border-color:var(--accent2)">
-          <strong>Je account is nog niet geactiveerd.</strong>
-          <p class="muted" style="margin:6px 0 0">Je kunt gewoon inloggen en rondkijken — activeer je abonnement zodra je klaar bent om documenten te analyseren.</p>
-          <a href="#usage" class="btn" style="display:inline-block;margin-top:12px" data-view="usage">Abonnement activeren →</a>
+          <strong>Your account isn't activated yet.</strong>
+          <p class="muted" style="margin:6px 0 0">Feel free to log in and look around — activate your subscription whenever you're ready to analyze documents.</p>
+          <a href="#usage" class="btn" style="display:inline-block;margin-top:12px" data-view="usage">Activate subscription →</a>
         </div>
 
         <div class="dropzone" id="dropzone">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-          <div>Sleep een document hierheen, of klik om te uploaden</div>
-          <div class="muted" style="font-size:12px;margin-top:4px">PDF of tekstbestand, max 50MB</div>
+          <div>Drag a document here, or click to upload</div>
+          <div class="muted" style="font-size:12px;margin-top:4px">PDF or text file, max 50MB</div>
           <input type="file" id="fileInput" accept=".pdf,.txt,.md" style="display:none">
         </div>
         <div id="uploadMsg" class="msg"></div>
@@ -45,36 +45,37 @@
       </div>
 
       <div id="view-doc-detail" style="display:none">
-        <button class="btn secondary" id="backToDocs" style="margin-bottom:16px">← Terug naar documenten</button>
+        <button class="btn secondary" id="backToDocs" style="margin-bottom:16px">← Back to documents</button>
         <h1 id="docTitle" style="font-size:20px"></h1>
         <p class="muted" id="docMeta" style="margin-top:0"></p>
 
         <div class="chat" id="chatThread"></div>
 
         <div class="card" style="margin-top:16px">
-          <label for="questionInput">Stel een vraag over dit document</label>
-          <textarea id="questionInput" placeholder="Bijv. Klopt de opgegeven omzet met de onderliggende cijfers in het document?"></textarea>
-          <button class="btn" id="askBtn" style="margin-top:12px">Vraag stellen</button>
+          <label for="questionInput">Ask a question about this document</label>
+          <textarea id="questionInput" placeholder="E.g. Does the reported revenue match the underlying figures in the document?"></textarea>
+          <button class="btn" id="askBtn" style="margin-top:12px">Ask question</button>
           <div id="askMsg" class="msg"></div>
         </div>
       </div>
 
       <div id="view-usage" style="display:none">
-        <h1 style="font-size:22px">Gebruik &amp; facturatie</h1>
+        <h1 style="font-size:22px">Usage &amp; billing</h1>
         <div class="card" id="usageCard"></div>
         <div class="card" id="billingCard" style="display:none">
-          <h2 style="font-size:16px">Abonnement activeren</h2>
+          <h2 style="font-size:16px">Activate subscription</h2>
           <p class="muted" style="margin-top:0" id="billingSummary"></p>
+          <div class="plan-grid" id="billingPlanGrid" style="margin-bottom:16px"></div>
           <div id="payment-element" style="margin:14px 0"></div>
-          <button class="btn" id="subscribeBtn" style="width:100%">Bevestigen en activeren</button>
+          <button class="btn" id="subscribeBtn" style="width:100%">Confirm and activate</button>
           <div id="billingMsg" class="msg"></div>
         </div>
       </div>
 
       <div id="view-employees" style="display:none">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-          <h1 style="font-size:22px">Werknemers</h1>
-          <button class="btn" id="addEmpBtn">+ Werknemer toevoegen</button>
+          <h1 style="font-size:22px">Employees</h1>
+          <button class="btn" id="addEmpBtn">+ Add employee</button>
         </div>
         <div class="card" id="empList"></div>
       </div>
@@ -89,7 +90,7 @@ let currentDocId = null;
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.error || 'Er ging iets mis.');
+  if (!r.ok) throw new Error(data.error || 'Something went wrong.');
   return data;
 }
 
@@ -107,7 +108,17 @@ async function init() {
     window.location.href = '/login.html';
     return;
   }
-  document.getElementById('planBadge').textContent = me.company.plan.charAt(0).toUpperCase() + me.company.plan.slice(1);
+  // Only show a plan badge once billing is actually active — the `plan` column is just the
+  // company's chosen/intended plan, not proof they're subscribed, so showing it beforehand would
+  // read as "you already have Professional" when nothing has been paid for yet.
+  const planBadge = document.getElementById('planBadge');
+  if (me.company.subscription_status === 'active') {
+    planBadge.textContent = me.company.plan.charAt(0).toUpperCase() + me.company.plan.slice(1);
+    planBadge.className = 'badge plan';
+  } else {
+    planBadge.textContent = 'No active plan';
+    planBadge.className = 'badge warn';
+  }
   if (me.user.role === 'ceo') document.getElementById('employeesLink').style.display = 'block';
   document.getElementById('billingBanner').style.display = me.company.subscription_status === 'active' ? 'none' : 'block';
   loadDocuments();
@@ -134,11 +145,11 @@ async function loadDocuments() {
       <div class="doc-list-item" data-id="${d.id}">
         <div>
           <div class="fname">${esc(d.filename)}</div>
-          <div class="fmeta">${d.complexity === 'complex' ? 'Complex document' : 'Klein document'} · ${new Date(d.created_at).toLocaleDateString('nl-NL')}</div>
+          <div class="fmeta">${d.complexity === 'complex' ? 'Complex document' : 'Small document'} · ${new Date(d.created_at).toLocaleDateString('en-GB')}</div>
         </div>
         <span class="badge ${d.status === 'done' ? 'ok' : d.status === 'failed' ? '' : 'warn'}">${d.status}</span>
       </div>`).join('')
-    : `<p class="muted" style="padding:16px">Nog geen documenten geüpload.</p>`;
+    : `<p class="muted" style="padding:16px">No documents uploaded yet.</p>`;
   list.querySelectorAll('.doc-list-item').forEach((el) => el.addEventListener('click', () => openDocument(Number(el.dataset.id))));
 }
 
@@ -154,16 +165,16 @@ fileInput.addEventListener('change', () => { if (fileInput.files[0]) uploadFile(
 
 async function uploadFile(file) {
   const msg = document.getElementById('uploadMsg');
-  msg.className = 'msg'; msg.textContent = 'Uploaden...';
+  msg.className = 'msg'; msg.textContent = 'Uploading...';
   const fd = new FormData();
   fd.append('file', file);
   try {
     const r = await fetch('/api/documents', { method: 'POST', body: fd });
     const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Upload mislukt.');
+    if (!r.ok) throw new Error(data.error || 'Upload failed.');
     msg.textContent = data.overage
-      ? `Geüpload — dit document valt buiten je pakket-limiet (+€${(data.extraCostEuroCents / 100).toFixed(2)}).`
-      : 'Geüpload.';
+      ? `Uploaded — this document is outside your plan's limit (+€${(data.extraCostEuroCents / 100).toFixed(2)}).`
+      : 'Uploaded.';
     msg.className = 'msg ok';
     loadDocuments();
   } catch (err) {
@@ -175,7 +186,7 @@ async function openDocument(id) {
   currentDocId = id;
   const { document: doc } = await api(`/api/documents/${id}`);
   document.getElementById('docTitle').textContent = doc.filename;
-  document.getElementById('docMeta').textContent = `${doc.complexity === 'complex' ? 'Complex document' : 'Klein document'} · geüpload op ${new Date(doc.created_at).toLocaleString('nl-NL')}`;
+  document.getElementById('docMeta').textContent = `${doc.complexity === 'complex' ? 'Complex document' : 'Small document'} · uploaded ${new Date(doc.created_at).toLocaleString('en-GB')}`;
   showView('doc-detail');
   await loadThread();
 }
@@ -197,7 +208,7 @@ function renderAnswer(answer, citations) {
     <div class="cite-pop" id="pop-${i}">
       ${c.grounded
         ? `<div class="quote">"${esc(c.quote)}"</div>`
-        : `<div class="flag">⚠ Geen onderbouwing gevonden in het document — controleer deze uitspraak, mogelijk een redeneerfout of hallucinatie van het model.</div>`}
+        : `<div class="flag">⚠ No supporting passage found in the document — check this statement, it may be a reasoning error or hallucination.</div>`}
     </div>`).join('');
   return `<p>${parts.join(' ')}</p>${pops}`;
 }
@@ -212,10 +223,10 @@ function renderThread(queries) {
   thread.innerHTML = queries.map((q) => `
     <div class="qa">
       <div class="q">${esc(q.question)}</div>
-      ${q.status === 'pending' ? `<div class="coldstart"><span class="spinner"></span> Model analyseert (bij een koude start van de GPU kan dit 1-2 minuten duren)...</div>` : ''}
+      ${q.status === 'pending' ? `<div class="coldstart"><span class="spinner"></span> Model is analyzing (a cold GPU start can take 1-2 minutes)...</div>` : ''}
       ${q.status === 'done' ? renderAnswer(q.answer, q.citations_json) : ''}
-      ${q.status === 'failed' ? `<p class="msg err">Analyse mislukt — probeer het opnieuw.</p>` : ''}
-    </div>`).join('') || `<p class="muted">Nog geen vragen gesteld over dit document.</p>`;
+      ${q.status === 'failed' ? `<p class="msg err">Analysis failed — please try again.</p>` : ''}
+    </div>`).join('') || `<p class="muted">No questions asked about this document yet.</p>`;
 
   thread.querySelectorAll('.sentence').forEach((el) => el.addEventListener('click', () => {
     const qaEl = el.closest('.qa');
@@ -239,7 +250,7 @@ document.getElementById('askBtn').addEventListener('click', async () => {
   const thread = document.getElementById('chatThread');
   const placeholder = document.createElement('div');
   placeholder.className = 'qa';
-  placeholder.innerHTML = `<div class="q">${esc(question)}</div><div class="coldstart"><span class="spinner"></span> Model analyseert (bij een koude start van de GPU kan dit 1-2 minuten duren)...</div>`;
+  placeholder.innerHTML = `<div class="q">${esc(question)}</div><div class="coldstart"><span class="spinner"></span> Model is analyzing (a cold GPU start can take 1-2 minutes)...</div>`;
   thread.appendChild(placeholder);
 
   try {
@@ -262,32 +273,53 @@ async function loadUsage() {
   const pctComplex = u.complexIncluded ? Math.min(100, (u.complexUsed / u.complexIncluded) * 100) : 0;
   const kleinPct = typeof u.kleinIncluded === 'number' ? Math.min(100, (u.kleinUsed / u.kleinIncluded) * 100) : 0;
   document.getElementById('usageCard').innerHTML = `
-    <p class="muted" style="margin-top:0">Periode: ${u.month} · Pakket: ${u.plan}</p>
-    <label>Complexe documenten: ${u.complexUsed} / ${u.complexIncluded}</label>
+    <p class="muted" style="margin-top:0">Period: ${u.month} · Plan: ${me.company.subscription_status === 'active' ? u.plan : 'none (not activated)'}</p>
+    <label>Complex documents: ${u.complexUsed} / ${u.complexIncluded}</label>
     <div class="usage-bar"><div class="fill" style="width:${pctComplex}%"></div></div>
-    <label style="margin-top:22px">Kleine documenten: ${u.kleinUsed} / ${u.kleinIncluded}</label>
+    <label style="margin-top:22px">Small documents: ${u.kleinUsed} / ${u.kleinIncluded}</label>
     <div class="usage-bar"><div class="fill" style="width:${kleinPct}%"></div></div>
-    ${u.overageEuroCents > 0 ? `<p style="margin-top:22px" class="msg warn">Extra kosten deze maand: €${(u.overageEuroCents / 100).toFixed(2)} (buiten pakket-limiet)</p>` : ''}
+    ${u.overageEuroCents > 0 ? `<p style="margin-top:22px" class="msg warn">Extra charges this month: €${(u.overageEuroCents / 100).toFixed(2)} (over plan limit)</p>` : ''}
   `;
 
   const billingCard = document.getElementById('billingCard');
   if (me.company.subscription_status === 'active') { billingCard.style.display = 'none'; return; }
   if (me.user.role !== 'ceo') {
     billingCard.style.display = 'block';
-    document.getElementById('billingSummary').textContent = 'Alleen de CEO/eigenaar van dit account kan het abonnement activeren.';
+    document.getElementById('billingSummary').textContent = 'Only the CEO/owner of this account can activate the subscription.';
     document.getElementById('payment-element').style.display = 'none';
     document.getElementById('subscribeBtn').style.display = 'none';
     return;
   }
   billingCard.style.display = 'block';
-  document.getElementById('billingSummary').textContent = `Pakket: ${u.plan} — kies onderstaand een betaalmethode om te activeren.`;
+  document.getElementById('billingSummary').textContent = 'Choose a plan and a payment method to activate.';
+
+  const BILLING_PLANS = {
+    starter: { label: "Starter", price: 295, desc: "25 complex + 50 small docs/mo" },
+    professional: { label: "Professional", price: 695, desc: "80 complex + 150 small docs/mo" },
+    enterprise: { label: "Enterprise", price: 1495, desc: "200 complex + unlimited small docs/mo" },
+  };
+  selectedBillingPlan = u.plan in BILLING_PLANS ? u.plan : 'starter';
+  const planGrid = document.getElementById('billingPlanGrid');
+  planGrid.innerHTML = '';
+  Object.entries(BILLING_PLANS).forEach(([key, p]) => {
+    const el = document.createElement('div');
+    el.className = 'plan-card' + (key === selectedBillingPlan ? ' selected' : '');
+    el.dataset.plan = key;
+    el.innerHTML = `<div class="plabel">${p.label}</div><div class="pprice">€${p.price}<small>/mo</small></div><div class="pdesc">${p.desc}</div>`;
+    el.addEventListener('click', () => {
+      selectedBillingPlan = key;
+      [...planGrid.children].forEach((c) => c.classList.toggle('selected', c.dataset.plan === key));
+    });
+    planGrid.appendChild(el);
+  });
+
   const si = await api('/api/billing/setup-intent', { method: 'POST' });
   billingStripe = Stripe(si.publishableKey);
   billingElements = billingStripe.elements({ clientSecret: si.clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#7c9bff', colorBackground: '#111319', colorText: '#eef0f5', borderRadius: '10px' } } });
   billingElements.create('payment').mount('#payment-element');
 }
 
-let billingStripe, billingElements;
+let billingStripe, billingElements, selectedBillingPlan;
 document.getElementById('subscribeBtn').addEventListener('click', async () => {
   const msg = document.getElementById('billingMsg');
   msg.className = 'msg'; msg.textContent = '';
@@ -296,11 +328,14 @@ document.getElementById('subscribeBtn').addEventListener('click', async () => {
   try {
     const { error, setupIntent } = await billingStripe.confirmSetup({ elements: billingElements, redirect: 'if_required' });
     if (error) throw new Error(error.message);
-    await api('/api/billing/subscribe', { method: 'POST', body: JSON.stringify({ paymentMethodId: setupIntent.payment_method }) });
-    msg.textContent = 'Abonnement geactiveerd!'; msg.className = 'msg ok';
+    await api('/api/billing/subscribe', { method: 'POST', body: JSON.stringify({ paymentMethodId: setupIntent.payment_method, plan: selectedBillingPlan }) });
+    msg.textContent = 'Subscription activated!'; msg.className = 'msg ok';
     me = await api('/api/me');
     document.getElementById('billingBanner').style.display = 'none';
     document.getElementById('billingCard').style.display = 'none';
+    const planBadge = document.getElementById('planBadge');
+    planBadge.textContent = me.company.plan.charAt(0).toUpperCase() + me.company.plan.slice(1);
+    planBadge.className = 'badge plan';
   } catch (err) {
     msg.textContent = err.message; msg.className = 'msg err';
   } finally {
@@ -317,19 +352,19 @@ async function loadEmployees() {
         <div style="font-weight:500">${esc(e.name || e.email)} ${e.role === 'ceo' ? '<span class="badge plan" style="margin-left:6px">CEO</span>' : ''}</div>
         <div class="muted" style="font-size:13px">${esc(e.email)}</div>
       </div>
-      ${e.role === 'employee' ? `<button class="btn danger" data-id="${e.id}" style="padding:6px 12px;font-size:13px">Verwijderen</button>` : ''}
+      ${e.role === 'employee' ? `<button class="btn danger" data-id="${e.id}" style="padding:6px 12px;font-size:13px">Remove</button>` : ''}
     </div>`).join('');
   document.getElementById('empList').querySelectorAll('button[data-id]').forEach((btn) => btn.addEventListener('click', async () => {
-    if (!confirm('Werknemer verwijderen?')) return;
+    if (!confirm('Remove this employee?')) return;
     await api(`/api/employees/${btn.dataset.id}`, { method: 'DELETE' });
     loadEmployees();
   }));
 }
 document.getElementById('addEmpBtn').addEventListener('click', async () => {
-  const email = prompt('E-mailadres van de nieuwe werknemer:');
+  const email = prompt('Email address of the new employee:');
   if (!email) return;
-  const name = prompt('Naam:') || '';
-  const password = prompt('Tijdelijk wachtwoord (min. 8 tekens):');
+  const name = prompt('Name:') || '';
+  const password = prompt('Temporary password (min. 8 characters):');
   if (!password) return;
   try {
     await api('/api/employees', { method: 'POST', body: JSON.stringify({ email, name, password }) });

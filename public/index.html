@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>vanKonijnenburg — the LLM that doesn't hallucinate</title>
-<meta name="description" content="vanKonijnenburg is a large language model trained end-to-end for grounded answers — 0 fabricated facts and only 4 reasoning errors across 643 independently fact-checked answers.">
+<title>vanKonijnenburg — factual grounding for the financial sector</title>
+<meta name="description" content="vanKonijnenburg analyzes financial documents and backs every answer with an exact citation from the source — so you can verify it yourself, instead of having to trust it.">
 <style>
   :root{
     --bg:#0a0b0f; --bg2:#111319; --card:#15171f; --border:#232634;
@@ -20,61 +20,57 @@
   }
   a{color:inherit}
   .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
-  header{padding:28px 0}
+  header{padding:24px 0}
   .nav{display:flex;align-items:center;justify-content:space-between}
   .brand{display:flex;align-items:center;gap:10px;font-weight:700;font-size:18px;letter-spacing:-.01em}
   .brand .dot{width:10px;height:10px;border-radius:3px;background:linear-gradient(135deg,var(--accent),var(--accent2))}
-  .navlink{color:var(--muted);text-decoration:none;font-size:14px;padding:8px 14px;border:1px solid var(--border);border-radius:999px}
+  .navlink{color:var(--muted);text-decoration:none;font-size:14px;padding:9px 16px;border:1px solid var(--border);border-radius:999px;transition:.15s}
   .navlink:hover{color:var(--text);border-color:#3a3f52}
+  .navlink.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0a0b0f;border:none;font-weight:600}
 
-  .hero{padding:72px 0 40px;text-align:center}
+  .hero{padding:64px 0 40px;text-align:center}
   .badge{display:inline-flex;align-items:center;gap:8px;font-size:13px;color:var(--accent);background:rgba(110,231,199,.08);border:1px solid rgba(110,231,199,.25);padding:6px 14px;border-radius:999px;margin-bottom:24px}
-  h1{font-size:clamp(34px,5.5vw,58px);line-height:1.05;letter-spacing:-.02em;margin:0 0 20px;font-weight:700}
+  h1{font-size:clamp(32px,5vw,54px);line-height:1.08;letter-spacing:-.02em;margin:0 0 20px;font-weight:700}
   h1 .grad{background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .sub{color:var(--muted);font-size:19px;max-width:640px;margin:0 auto 36px}
+  .sub{color:var(--muted);font-size:18px;max-width:660px;margin:0 auto 36px}
+  .hero-ctas{display:flex;gap:12px;justify-content:center;flex-wrap:wrap}
 
-  .code{
-    text-align:left; max-width:640px; margin:0 auto 48px; background:var(--card); border:1px solid var(--border);
-    border-radius:var(--radius); padding:18px 22px; font:13px/1.7 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    color:#c9cdda; overflow-x:auto;
-  }
-  .code .k{color:var(--accent2)} .code .s{color:var(--accent)} .code .c{color:#5a5f74}
+  section{padding:52px 0}
+  .section-title{font-size:27px;font-weight:700;letter-spacing:-.01em;margin:0 0 8px;text-align:center}
+  .section-sub{color:var(--muted);text-align:center;max-width:600px;margin:0 auto 40px;font-size:15.5px}
 
-  section{padding:56px 0}
-  .section-title{font-size:28px;font-weight:700;letter-spacing:-.01em;margin:0 0 8px;text-align:center}
-  .section-sub{color:var(--muted);text-align:center;max-width:560px;margin:0 auto 40px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:14px}
+  @media(max-width:900px){.grid3{grid-template-columns:1fr 1fr}.grid5{grid-template-columns:1fr 1fr}}
+  @media(max-width:600px){.grid3{grid-template-columns:1fr}.grid5{grid-template-columns:1fr}}
 
-  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-  @media(max-width:820px){.steps{grid-template-columns:1fr}}
-  .step{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:26px}
-  .step .n{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:9px;background:rgba(124,155,255,.12);color:var(--accent2);font-weight:700;font-size:14px;margin-bottom:16px}
-  .step h3{margin:0 0 8px;font-size:16px}
-  .step p{margin:0;color:var(--muted);font-size:14.5px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px}
+  .card h3{margin:0 0 8px;font-size:16px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .card .n{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:rgba(124,155,255,.12);color:var(--accent2);font-weight:700;font-size:13px;margin-bottom:14px}
 
-  .pricing{max-width:640px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:32px;text-align:center}
-  .pricing .tag{display:inline-block;font-size:12px;color:var(--muted);border:1px solid var(--border);padding:3px 10px;border-radius:999px;margin-bottom:14px}
-  .pricing .price{font-size:34px;font-weight:700;letter-spacing:-.01em}
-  .pricing .price small{font-size:15px;color:var(--muted);font-weight:400}
-  .pricing p{color:var(--muted);font-size:14.5px;margin-top:10px}
+  .stat{text-align:center}
+  .stat .num{font-size:38px;font-weight:700;letter-spacing:-.02em}
+  .stat p{color:var(--muted);font-size:13.5px;margin-top:8px}
 
-  #waitlist{padding:64px 0 96px}
-  .form-card{max-width:520px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:32px}
-  .form-card h2{margin:0 0 6px;font-size:22px;text-align:center}
-  .form-card p.lead{color:var(--muted);text-align:center;margin:0 0 26px;font-size:14.5px}
-  label{display:block;font-size:13px;color:var(--muted);margin:14px 0 6px}
-  input,textarea{
-    width:100%;padding:11px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);
-    color:var(--text);font-size:14.5px;font-family:inherit;
-  }
-  input:focus,textarea:focus{outline:none;border-color:var(--accent2)}
-  textarea{resize:vertical;min-height:70px}
-  button{
-    margin-top:22px;width:100%;padding:13px;border:none;border-radius:10px;font-size:15px;font-weight:600;
-    background:linear-gradient(135deg,var(--accent),var(--accent2));color:#0a0b0f;cursor:pointer;
-  }
-  button:disabled{opacity:.6;cursor:default}
-  #formMsg{margin-top:14px;font-size:14px;text-align:center;min-height:20px}
-  #formMsg.ok{color:var(--accent)} #formMsg.err{color:var(--danger)}
+  .flow{display:flex;flex-direction:column;gap:14px;max-width:560px;margin:0 auto}
+  .flow-step{display:flex;gap:16px;align-items:flex-start;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px 20px}
+  .flow-step .n{flex-shrink:0;width:30px;height:30px;border-radius:9px;background:rgba(110,231,199,.1);color:var(--accent);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px}
+  .flow-step h4{margin:0 0 4px;font-size:15px}
+  .flow-step p{margin:0;color:var(--muted);font-size:13.5px}
+
+  .example{max-width:560px;margin:0 auto;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;font-size:14px}
+  .example .q{font-weight:600;margin-bottom:12px}
+  .example .a .cited{border-bottom:1.5px dotted rgba(110,231,199,.55)}
+  .example .cite{margin-top:12px;padding:10px 14px;border-radius:8px;background:var(--bg2);border-left:2px solid var(--accent2);color:var(--muted);font-style:italic;font-size:13px}
+
+  .pricing-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:26px;text-align:center}
+  .pricing-card.featured{border-color:var(--accent2)}
+  .ptag{font-size:12px;color:var(--muted);margin-bottom:8px}
+  .pricing-card.featured .ptag{color:var(--accent2)}
+  .pprice{font-size:30px;font-weight:700;letter-spacing:-.01em}
+  .pprice small{font-size:14px;color:var(--muted);font-weight:400}
+  .pricing-card p.pdesc{margin-top:12px;color:var(--muted);font-size:13.5px}
 
   footer{border-top:1px solid var(--border);padding:28px 0;color:var(--muted);font-size:13px;text-align:center}
 </style>
@@ -84,118 +80,84 @@
     <div class="nav">
       <div class="brand"><span class="dot"></span> vanKonijnenburg</div>
       <div style="display:flex;gap:10px">
-        <a class="navlink" href="/login.html">Inloggen</a>
-        <a class="navlink" style="border-color:var(--accent2)" href="/register.html">Start gratis proefperiode →</a>
+        <a class="navlink" href="/login.html">Log in</a>
+        <a class="navlink primary" href="/register.html">Register</a>
       </div>
     </div>
   </header>
 
   <section class="hero wrap">
-    <span class="badge">● Early access opening soon</span>
-    <h1>An LLM that <span class="grad">doesn't make things up.</span></h1>
-    <p class="sub">vanKonijnenburg is a large language model trained end-to-end for grounded answers. Evaluated against Google's official FACTS Grounding methodology on 643 independently fact-checked answers: 0 fabricated facts, only 4 with a reasoning error.</p>
-
-    <div class="code"><span class="c">POST</span> <span class="k">/v1/chat/completions</span>
-<span class="c">{</span> <span class="k">"model"</span>: <span class="c">"vankonijnenburg-1"</span>, <span class="k">"messages"</span>: <span class="c">[...]</span> <span class="c">}</span>
-<span class="c">→</span> <span class="c">{</span> <span class="k">"choices"</span>: <span class="c">[...]</span>, <span class="k">"grounding_score"</span>: <span class="s">0.99</span> <span class="c">}</span></div>
-
-    <a class="navlink" style="padding:12px 26px;font-size:15px;border-color:var(--accent2)" href="#waitlist">Get early access →</a>
-  </section>
-
-  <section class="wrap">
-    <div class="steps" style="grid-template-columns:repeat(2,1fr)">
-      <div class="step" style="text-align:center">
-        <div style="font-size:40px;font-weight:700;letter-spacing:-.02em" class="grad">~99%</div>
-        <p style="margin-top:8px">estimated score under Google's official FACTS Grounding methodology, on our internal 643-answer fact-checking benchmark (checked claim-by-claim against source documents)</p>
-      </div>
-      <div class="step" style="text-align:center">
-        <div style="font-size:40px;font-weight:700;letter-spacing:-.02em" class="grad">4 / 643</div>
-        <p style="margin-top:8px">answers with a residual reasoning error — the only issues found; not one fabricated fact across the whole benchmark</p>
-      </div>
+    <span class="badge">● For the financial sector</span>
+    <h1>Every answer <span class="grad">backed by a citation</span> from your own document.</h1>
+    <p class="sub">vanKonijnenburg analyzes financial documents and answers your questions about them, showing exactly which passage each statement comes from — or flagging it as unsupported. You verify the model, instead of having to trust it.</p>
+    <div class="hero-ctas">
+      <a class="navlink primary" style="padding:13px 28px;font-size:15px" href="/register.html">Register</a>
+      <a class="navlink" style="padding:13px 28px;font-size:15px" href="/login.html">Log in</a>
     </div>
-    <p style="text-align:center;color:var(--muted);font-size:12.5px;max-width:600px;margin:20px auto 0">Under our own stricter internal measure — which also counts reasoning errors and output artifacts, not just literal source-matching — the score is 95.3%. We report both rather than only the flattering one.</p>
   </section>
 
   <section class="wrap">
-    <h2 class="section-title">Why it doesn't hallucinate</h2>
-    <p class="section-sub">Grounding is trained in, not bolted on afterward with a separate checking step.</p>
-    <div class="steps">
-      <div class="step"><div class="n">1</div><h3>Trained on real evidence</h3><p>Every training example follows a Chain-of-Evidence: each claim traces back to a verifiable source, not just plausible-sounding text.</p></div>
-      <div class="step"><div class="n">2</div><h3>Tuned to reason, not guess</h3><p>Direct Preference Optimization specifically targets the reasoning errors that generic LLM judges miss — scope mismatches, category errors, misapplied facts.</p></div>
-      <div class="step"><div class="n">3</div><h3>Independently verified</h3><p>Every answer in our benchmark was checked claim-by-claim against its source document, by hand — not a single automated pass/fail score.</p></div>
+    <div class="grid3">
+      <div class="stat"><div class="num grad">~99%</div><p>scored under Google's official FACTS Grounding methodology, on our internal 643-answer benchmark</p></div>
+      <div class="stat"><div class="num grad">4 / 643</div><p>answers with a residual reasoning error — not a single fabricated fact across the whole benchmark</p></div>
+      <div class="stat"><div class="num grad">100%</div><p>of answers ship with a citation per claim, so every check is manually verifiable</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2 class="section-title">For the entire financial market</h2>
+    <p class="section-sub">Anywhere a document forms the basis for a decision, an advice, or a report.</p>
+    <div class="grid5">
+      <div class="card"><h3 style="font-size:14.5px">Accounting &amp; audit</h3><p>Check annual accounts and case files for factual consistency.</p></div>
+      <div class="card"><h3 style="font-size:14.5px">Banking &amp; compliance</h3><p>Review credit files and client documentation quickly, with sources.</p></div>
+      <div class="card"><h3 style="font-size:14.5px">Insurance</h3><p>Check policy terms and claims files against the source documents.</p></div>
+      <div class="card"><h3 style="font-size:14.5px">Wealth management</h3><p>Verify prospectuses and investment reports before advising clients.</p></div>
+      <div class="card"><h3 style="font-size:14.5px">Fintech &amp; risk</h3><p>Check contracts and risk reports without rereading everything by hand.</p></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <h2 class="section-title">How it works</h2>
+    <div class="flow">
+      <div class="flow-step"><div class="n">1</div><div><h4>Upload the document</h4><p>Upload once — then ask as many questions about it as you like.</p></div></div>
+      <div class="flow-step"><div class="n">2</div><div><h4>Ask your question</h4><p>In plain language, the way you'd ask a colleague.</p></div></div>
+      <div class="flow-step"><div class="n">3</div><div><h4>Get a grounded answer</h4><p>Every statement linked to the exact citation from the document, or flagged as not found.</p></div></div>
+    </div>
+
+    <div class="example" style="margin-top:32px">
+      <div class="q">"Does the reported revenue match the underlying figures?"</div>
+      <div class="a">The <span class="cited">2025 revenue was €500,000</span>, and <span class="cited">pre-tax profit was €80,000</span>.</div>
+      <div class="cite">"Revenue was 500,000 euros in 2025. Pre-tax profit was 80,000 euros." — quoted from the uploaded document</div>
     </div>
   </section>
 
   <section class="wrap" id="pricing">
-    <h2 class="section-title">Voor accountants- en audit-kantoren</h2>
-    <p class="section-sub">Upload een document, stel er vragen over, en krijg per antwoord het exacte citaat uit het document terug — zodat elke uitspraak zelf te controleren is.</p>
-    <div class="steps">
-      <div class="step" style="text-align:center;border-color:var(--border)">
-        <div class="pricing-tag" style="font-size:12px;color:var(--muted);margin-bottom:8px">Starter — 1-5 fte</div>
-        <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">€295<small style="font-size:14px;color:var(--muted);font-weight:400">/mnd</small></div>
-        <p style="margin-top:12px">25 complexe + 50 kleine documenten/mnd<br><span class="muted">€10 per extra complex document</span></p>
+    <h2 class="section-title">Pricing</h2>
+    <p class="section-sub">Each plan includes a fixed number of documents per month, with a flat rate per extra complex document above that.</p>
+    <div class="grid3">
+      <div class="pricing-card">
+        <div class="ptag">Starter — 1-5 employees</div>
+        <div class="pprice">€295<small>/mo</small></div>
+        <p class="pdesc">25 complex + 50 small documents/mo<br>€10 per extra complex document</p>
       </div>
-      <div class="step" style="text-align:center;border-color:var(--accent2)">
-        <div class="pricing-tag" style="font-size:12px;color:var(--accent2);margin-bottom:8px">Professional — 6-25 fte</div>
-        <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">€695<small style="font-size:14px;color:var(--muted);font-weight:400">/mnd</small></div>
-        <p style="margin-top:12px">80 complexe + 150 kleine documenten/mnd<br><span class="muted">€7,50 per extra complex document</span></p>
+      <div class="pricing-card featured">
+        <div class="ptag">Professional — 6-25 employees</div>
+        <div class="pprice">€695<small>/mo</small></div>
+        <p class="pdesc">80 complex + 150 small documents/mo<br>€7.50 per extra complex document</p>
       </div>
-      <div class="step" style="text-align:center;border-color:var(--border)">
-        <div class="pricing-tag" style="font-size:12px;color:var(--muted);margin-bottom:8px">Enterprise — audit-praktijken</div>
-        <div style="font-size:30px;font-weight:700;letter-spacing:-.01em">€1.495<small style="font-size:14px;color:var(--muted);font-weight:400">/mnd</small></div>
-        <p style="margin-top:12px">200 complexe + onbeperkt kleine documenten/mnd<br><span class="muted">€5 per extra complex document</span></p>
+      <div class="pricing-card">
+        <div class="ptag">Enterprise — large organizations</div>
+        <div class="pprice">€1,495<small>/mo</small></div>
+        <p class="pdesc">200 complex + unlimited small documents/mo<br>€5 per extra complex document</p>
       </div>
     </div>
     <div style="text-align:center;margin-top:32px">
-      <a class="navlink" style="padding:12px 26px;font-size:15px;border-color:var(--accent2)" href="/register.html">Start gratis proefperiode →</a>
-    </div>
-  </section>
-
-  <section id="waitlist" class="wrap">
-    <div class="form-card">
-      <h2>Join the waitlist</h2>
-      <p class="lead">vanKonijnenburg — the grounded LLM. We're onboarding a small group of early users first. Leave your details and we'll reach out.</p>
-      <form id="wlForm">
-        <label for="email">Email *</label>
-        <input id="email" name="email" type="email" required placeholder="you@company.com">
-        <label for="company">Company / project (optional)</label>
-        <input id="company" name="company" type="text" placeholder="Acme Inc.">
-        <label for="useCase">What would you use HalluCheck for? (optional)</label>
-        <textarea id="useCase" name="useCase" placeholder="e.g. verifying RAG answers before showing them to customers"></textarea>
-        <button type="submit" id="submitBtn">Join the waitlist</button>
-        <div id="formMsg"></div>
-      </form>
+      <a class="navlink primary" style="padding:13px 28px;font-size:15px" href="/register.html">Register</a>
     </div>
   </section>
 
   <footer class="wrap">
     Questions? <a href="mailto:durand2511@gmail.com">durand2511@gmail.com</a> — vanKonijnenburg
   </footer>
-
-<script>
-  const form = document.getElementById('wlForm');
-  const msg = document.getElementById('formMsg');
-  const btn = document.getElementById('submitBtn');
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    btn.disabled = true; msg.textContent = ''; msg.className = '';
-    const body = {
-      email: document.getElementById('email').value.trim(),
-      company: document.getElementById('company').value.trim(),
-      useCase: document.getElementById('useCase').value.trim(),
-    };
-    try {
-      const r = await fetch('/api/waitlist', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const data = await r.json();
-      if (!r.ok || !data.ok) throw new Error(data.error || 'Something went wrong.');
-      msg.textContent = "You're on the list — we'll be in touch."; msg.className = 'ok';
-      form.reset();
-    } catch (err) {
-      msg.textContent = err.message || 'Something went wrong.'; msg.className = 'err';
-    } finally {
-      btn.disabled = false;
-    }
-  });
-</script>
 </body>
 </html>

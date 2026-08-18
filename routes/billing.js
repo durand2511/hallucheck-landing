@@ -25,10 +25,14 @@ router.post("/api/billing/setup-intent", requireCeo, async (req, res) => {
 // Called once the card is saved (SetupIntent succeeded client-side): attaches it as the default
 // payment method and starts the monthly subscription for the company's chosen plan.
 router.post("/api/billing/subscribe", requireCeo, async (req, res) => {
-  const { paymentMethodId } = req.body || {};
-  if (!paymentMethodId) return res.status(400).json({ error: "Geen betaalmethode ontvangen." });
+  const { paymentMethodId, plan: chosenPlanKey } = req.body || {};
+  if (!paymentMethodId) return res.status(400).json({ error: "No payment method received." });
 
-  const { rows: [company] } = await pool.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id]);
+  let { rows: [company] } = await pool.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id]);
+  if (chosenPlanKey && PLANS[chosenPlanKey] && chosenPlanKey !== company.plan) {
+    await pool.query("UPDATE companies SET plan = $1 WHERE id = $2", [chosenPlanKey, company.id]);
+    company = { ...company, plan: chosenPlanKey };
+  }
   const plan = PLANS[company.plan];
   const customerId = await ensureStripeCustomer(company, req.user.email);
 

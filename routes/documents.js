@@ -10,7 +10,7 @@ const { analyzeDocument } = require("../lib/model-client.js");
 const router = express.Router();
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 
-// No fixed definition was given for "complex" vs "klein" document, so this uses a page-count
+// No fixed definition was given for "complex" vs "small" document, so this uses a page-count
 // proxy (word count / ~500 words per page) as the classifier -- easy to retune later once real
 // customer documents show what actually separates the two tiers in practice.
 const COMPLEX_WORD_THRESHOLD = 2500; // ~5 pages
@@ -27,6 +27,8 @@ async function extractText(file) {
   return file.buffer.toString("utf-8");
 }
 
+// Internal DB value stays "klein" (CHECK constraint in schema.sql) -- only the UI label is
+// translated (frontend renders it as "Small document"), so no schema/constraint migration needed.
 function classify(text) {
   const words = text.trim().split(/\s+/).filter(Boolean).length;
   return words > COMPLEX_WORD_THRESHOLD ? "complex" : "klein";
@@ -41,7 +43,7 @@ function safeFilename(name) {
 }
 
 router.post("/api/documents", requireAuth, upload.single("file"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "Geen bestand ontvangen." });
+  if (!req.file) return res.status(400).json({ error: "No file received." });
 
   const { rows: [company] } = await pool.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id]);
   const month = currentMonthKey();
@@ -56,7 +58,7 @@ router.post("/api/documents", requireAuth, upload.single("file"), async (req, re
   try {
     text = await extractText(req.file);
   } catch (err) {
-    return res.status(400).json({ error: "Kon dit bestand niet lezen: " + err.message });
+    return res.status(400).json({ error: "Could not read this file: " + err.message });
   }
   const complexity = classify(text);
 
@@ -100,7 +102,7 @@ router.get("/api/documents/:id", requireAuth, async (req, res) => {
     "SELECT * FROM documents WHERE id = $1 AND company_id = $2",
     [Number(req.params.id), req.user.company_id],
   );
-  if (!doc) return res.status(404).json({ error: "Document niet gevonden." });
+  if (!doc) return res.status(404).json({ error: "Document not found." });
   res.json({ document: doc });
 });
 
@@ -109,13 +111,13 @@ router.get("/api/documents/:id", requireAuth, async (req, res) => {
 // question does NOT count against the monthly document quota (only the initial upload does).
 router.post("/api/documents/:id/query", requireAuth, async (req, res) => {
   const question = String(req.body?.question || "").trim();
-  if (!question) return res.status(400).json({ error: "Stel een vraag over het document." });
+  if (!question) return res.status(400).json({ error: "Please enter a question about the document." });
 
   const { rows: [doc] } = await pool.query(
     "SELECT * FROM documents WHERE id = $1 AND company_id = $2",
     [Number(req.params.id), req.user.company_id],
   );
-  if (!doc) return res.status(404).json({ error: "Document niet gevonden." });
+  if (!doc) return res.status(404).json({ error: "Document not found." });
 
   const { rows: [query] } = await pool.query(
     "INSERT INTO document_queries (document_id, asked_by, question) VALUES ($1, $2, $3) RETURNING *",
@@ -135,7 +137,7 @@ router.post("/api/documents/:id/query", requireAuth, async (req, res) => {
   } catch (err) {
     await pool.query("UPDATE document_queries SET status = 'failed' WHERE id = $1", [query.id]);
     await pool.query("UPDATE documents SET status = 'failed' WHERE id = $1", [doc.id]);
-    res.status(502).json({ error: "Analyse mislukt: " + err.message });
+    res.status(502).json({ error: "Analysis failed: " + err.message });
   }
 });
 
@@ -144,7 +146,7 @@ router.get("/api/documents/:id/queries", requireAuth, async (req, res) => {
     "SELECT id FROM documents WHERE id = $1 AND company_id = $2",
     [Number(req.params.id), req.user.company_id],
   );
-  if (!doc) return res.status(404).json({ error: "Document niet gevonden." });
+  if (!doc) return res.status(404).json({ error: "Document not found." });
   const { rows } = await pool.query(
     "SELECT id, question, answer, citations_json, status, created_at FROM document_queries WHERE document_id = $1 ORDER BY created_at",
     [doc.id],
@@ -168,7 +170,7 @@ router.get("/api/usage", requireAuth, async (req, res) => {
     complexUsed: complexCount,
     complexIncluded: plan.includedComplex,
     kleinUsed: kleinCount,
-    kleinIncluded: plan.includedKlein === Infinity ? "onbeperkt" : plan.includedKlein,
+    kleinIncluded: plan.includedKlein === Infinity ? "unlimited" : plan.includedKlein,
     overageEuroCents: overageCents(company.plan, complexCount, kleinCount),
   });
 });
