@@ -102,6 +102,22 @@ router.get("/api/documents/:id", requireAuth, async (req, res) => {
   res.json({ document: doc });
 });
 
+router.delete("/api/documents/:id", requireAuth, async (req, res) => {
+  const { rows: [doc] } = await pool.query(
+    "SELECT * FROM documents WHERE id = $1 AND company_id = $2",
+    [Number(req.params.id), req.user.company_id],
+  );
+  if (!doc) return res.status(404).json({ error: "Document not found." });
+
+  // document_queries cascade-delete at the DB level (schema.sql FK ON DELETE CASCADE) -- only the
+  // physical files on disk need cleaning up here, since those aren't tracked by the database.
+  for (const p of [doc.storage_path, doc.storage_path + ".txt"]) {
+    fs.unlink(p, (err) => { if (err && err.code !== "ENOENT") console.error("[documents] failed to delete file:", p, err.message); });
+  }
+  await pool.query("DELETE FROM documents WHERE id = $1", [doc.id]);
+  res.json({ ok: true });
+});
+
 // The core interaction: upload once, then ask as many questions as needed. Each question is its
 // own row so the UI can show a running Q&A thread with citations per answer — asking a follow-up
 // question does NOT count against the monthly document quota (only the initial upload does).

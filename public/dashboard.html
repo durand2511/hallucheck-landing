@@ -164,10 +164,23 @@ async function loadDocuments() {
           <div class="fname">${esc(d.filename)}</div>
           <div class="fmeta">${d.complexity === 'complex' ? 'Complex document' : 'Small document'} · ${new Date(d.created_at).toLocaleDateString('en-GB')}</div>
         </div>
-        <span class="badge ${d.status === 'done' ? 'ok' : d.status === 'failed' ? '' : 'warn'}">${d.status}</span>
+        <div style="display:flex;align-items:center;gap:10px">
+          <span class="badge ${d.status === 'done' ? 'ok' : d.status === 'failed' ? '' : 'warn'}">${d.status}</span>
+          <button class="btn danger" data-delete-id="${d.id}" style="padding:5px 10px;font-size:12px">Delete</button>
+        </div>
       </div>`).join('')
     : `<p class="muted" style="padding:16px">No documents uploaded yet.</p>`;
   list.querySelectorAll('.doc-list-item').forEach((el) => el.addEventListener('click', () => openDocument(Number(el.dataset.id))));
+  list.querySelectorAll('[data-delete-id]').forEach((btn) => btn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    if (!confirm('Delete this document and all its questions/answers? This cannot be undone.')) return;
+    try {
+      await api(`/api/documents/${btn.dataset.deleteId}`, { method: 'DELETE' });
+      loadDocuments();
+    } catch (err) {
+      alert(err.message);
+    }
+  }));
 }
 
 const dropzone = document.getElementById('dropzone');
