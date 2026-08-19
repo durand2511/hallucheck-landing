@@ -6,7 +6,7 @@ const { pool } = require("../lib/db.js");
 const { requireAuth } = require("../lib/auth.js");
 const { currentMonthKey } = require("../lib/plans.js");
 const { analyzeDocument } = require("../lib/model-client.js");
-const { getPodRow } = require("../lib/runpod.js");
+const { getPodRow, forceReset } = require("../lib/runpod.js");
 
 const router = express.Router();
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
@@ -145,6 +145,15 @@ router.post("/api/documents/:id/query", requireAuth, async (req, res) => {
 router.get("/api/gpu-status", requireAuth, async (req, res) => {
   const pod = await getPodRow();
   res.json({ status: pod.status });
+});
+
+// Manual recovery when the GPU state gets stuck pointing at a pod that no longer really exists
+// (see forceReset()'s doc comment in lib/runpod.js). Any authenticated user can call this --
+// worst case it just terminates an already-dead pod id and resets bookkeeping, which is always
+// safe to do.
+router.post("/api/gpu-status/reset", requireAuth, async (req, res) => {
+  await forceReset();
+  res.json({ status: "stopped" });
 });
 
 router.get("/api/documents/:id/queries", requireAuth, async (req, res) => {
