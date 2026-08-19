@@ -116,7 +116,7 @@ tr.clickable:hover{background:var(--card2)}
 .ad-block .ad-issue{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--warn);margin-bottom:10px}
 .ad-block .ad-issue b{color:var(--text)}
 .ad-card{display:block;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-decoration:none;color:var(--text);transition:.12s}
-.ad-card + .ad-card{margin-top:8px}
+.ad-card-row + .ad-card-row{margin-top:8px}
 .ad-card:hover{border-color:var(--accent2)}
 .ad-card .ad-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
 .ad-card .ad-title{font-size:14px;font-weight:600;margin-top:4px}

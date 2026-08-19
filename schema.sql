@@ -124,3 +124,18 @@ CREATE TABLE IF NOT EXISTS ad_clicks (
 CREATE INDEX IF NOT EXISTS idx_ads_advertiser ON ads(advertiser_id);
 CREATE INDEX IF NOT EXISTS idx_ad_clicks_ad ON ad_clicks(ad_id);
 CREATE INDEX IF NOT EXISTS idx_ad_clicks_advertiser_billed ON ad_clicks(advertiser_id, billed);
+
+-- The CEO's message center: any employee (or the CEO) can forward an ad they see while reviewing
+-- a document, so the CEO doesn't have to be the one who happened to be looking at that document.
+CREATE TABLE IF NOT EXISTS ad_forwards (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  ad_id INTEGER NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+  document_query_id INTEGER REFERENCES document_queries(id) ON DELETE SET NULL,
+  forwarded_by INTEGER NOT NULL REFERENCES users(id),
+  note TEXT NOT NULL DEFAULT '',
+  read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ad_forwards_company ON ad_forwards(company_id, read);

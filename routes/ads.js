@@ -1,7 +1,7 @@
 const fs = require("node:fs");
 const express = require("express");
 const { pool } = require("../lib/db.js");
-const { requireAuth } = require("../lib/auth.js");
+const { requireAuth, requireCeo } = require("../lib/auth.js");
 const { getCostPerClickCents } = require("../lib/settings.js");
 
 const router = express.Router();
@@ -59,6 +59,54 @@ router.post("/api/ads/:id/click", requireAuth, async (req, res) => {
     [ad.id, ad.advertiser_id, req.body?.queryId ? Number(req.body.queryId) : null, cpc],
   );
   res.json({ url: ad.website_url });
+});
+
+// Anyone in the company (employee or CEO) can forward an ad they see while reviewing a document
+// -- it always lands in the CEO's message center, since the CEO is usually the one who'd actually
+// decide whether to engage a vendor, not whoever happened to be looking at that document.
+router.post("/api/ads/:id/forward", requireAuth, async (req, res) => {
+  const { rows: [ad] } = await pool.query("SELECT * FROM ads WHERE id = $1", [Number(req.params.id)]);
+  if (!ad) return res.status(404).json({ error: "Ad not found." });
+  const { rows: [forward] } = await pool.query(
+    "INSERT INTO ad_forwards (company_id, ad_id, document_query_id, forwarded_by, note) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+    [req.user.company_id, ad.id, req.body?.queryId ? Number(req.body.queryId) : null, req.user.id, String(req.body?.note || "").trim()],
+  );
+  res.status(201).json({ forward });
+});
+
+router.get("/api/messages", requireCeo, async (req, res) => {
+  const { rows } = await pool.query(
+    `SELECT f.id, f.note, f.read, f.created_at,
+            a.title, a.description, a.website_url,
+            u.name AS forwarded_by_name, u.email AS forwarded_by_email
+     FROM ad_forwards f
+     JOIN ads a ON a.id = f.ad_id
+     JOIN users u ON u.id = f.forwarded_by
+     WHERE f.company_id = $1
+     ORDER BY f.created_at DESC`,
+    [req.user.company_id],
+  );
+  const unreadCount = rows.filter((r) => !r.read).length;
+  res.json({ messages: rows, unreadCount });
+});
+
+// Opening a forwarded ad marks it read AND counts as a real click (the CEO engaging with the
+// vendor is exactly the outcome a click is meant to capture) -- same billing path as a direct click.
+router.post("/api/messages/:id/click", requireCeo, async (req, res) => {
+  const { rows: [forward] } = await pool.query(
+    "SELECT f.*, a.website_url, a.advertiser_id, a.status FROM ad_forwards f JOIN ads a ON a.id = f.ad_id WHERE f.id = $1 AND f.company_id = $2",
+    [Number(req.params.id), req.user.company_id],
+  );
+  if (!forward) return res.status(404).json({ error: "Message not found." });
+  await pool.query("UPDATE ad_forwards SET read = true WHERE id = $1", [forward.id]);
+  if (forward.status === "active") {
+    const cpc = await getCostPerClickCents();
+    await pool.query(
+      "INSERT INTO ad_clicks (ad_id, advertiser_id, document_query_id, charged_cents) VALUES ($1, $2, $3, $4)",
+      [forward.ad_id, forward.advertiser_id, forward.document_query_id, cpc],
+    );
+  }
+  res.json({ url: forward.website_url });
 });
 
 module.exports = router;
