@@ -109,6 +109,19 @@ tr.clickable:hover{background:var(--card2)}
 .cite-pop .quote{color:var(--text);font-style:italic;border-left:2px solid var(--accent2);padding-left:10px;margin-top:6px}
 .cite-pop .flag{color:var(--danger);font-weight:600}
 
+/* Ad block: deliberately NOT styled like .qa (different background/border/font treatment) so it
+   can never be mistaken for part of the AI's own answer -- only appears when the answer contains
+   an unresolved (ungrounded) claim, framed as "here's the issue, here's what might help". */
+.ad-block{margin-top:10px;padding:14px 16px;border-radius:12px;background:rgba(255,201,120,.06);border:1px dashed rgba(255,201,120,.35)}
+.ad-block .ad-issue{display:flex;gap:8px;align-items:flex-start;font-size:13px;color:var(--warn);margin-bottom:10px}
+.ad-block .ad-issue b{color:var(--text)}
+.ad-card{display:block;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;text-decoration:none;color:var(--text);transition:.12s}
+.ad-card + .ad-card{margin-top:8px}
+.ad-card:hover{border-color:var(--accent2)}
+.ad-card .ad-label{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.ad-card .ad-title{font-size:14px;font-weight:600;margin-top:4px}
+.ad-card .ad-desc{font-size:13px;color:var(--muted);margin-top:3px}
+
 .spinner{width:16px;height:16px;border-radius:50%;border:2px solid var(--border);border-top-color:var(--accent2);animation:spin .7s linear infinite;display:inline-block;vertical-align:middle}
 @keyframes spin{to{transform:rotate(360deg)}}
 .coldstart{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13.5px;padding:12px 0}

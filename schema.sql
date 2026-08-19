@@ -72,3 +72,55 @@ CREATE TABLE IF NOT EXISTS document_queries (
 CREATE INDEX IF NOT EXISTS idx_documents_company ON documents(company_id);
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
 CREATE INDEX IF NOT EXISTS idx_queries_document ON document_queries(document_id);
+
+-- Single-row key/value config so operational settings (like the cost-per-click) can be changed
+-- from one place without a code deploy.
+CREATE TABLE IF NOT EXISTS app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT INTO app_settings (key, value) VALUES ('cost_per_click_cents', '50') ON CONFLICT (key) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS advertisers (
+  id SERIAL PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  company_name TEXT NOT NULL DEFAULT '',
+  stripe_customer_id TEXT,
+  stripe_payment_method_id TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS advertiser_sessions (
+  token TEXT PRIMARY KEY,
+  advertiser_id INTEGER NOT NULL REFERENCES advertisers(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS ads (
+  id SERIAL PRIMARY KEY,
+  advertiser_id INTEGER NOT NULL REFERENCES advertisers(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  website_url TEXT NOT NULL,
+  sector TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per click, so billing is auditable (sum of unbilled rows) instead of just a running
+-- counter -- lets us retry/verify a charge without losing the underlying record of what happened.
+CREATE TABLE IF NOT EXISTS ad_clicks (
+  id SERIAL PRIMARY KEY,
+  ad_id INTEGER NOT NULL REFERENCES ads(id) ON DELETE CASCADE,
+  advertiser_id INTEGER NOT NULL REFERENCES advertisers(id) ON DELETE CASCADE,
+  document_query_id INTEGER REFERENCES document_queries(id) ON DELETE SET NULL,
+  charged_cents INTEGER NOT NULL,
+  billed BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ads_advertiser ON ads(advertiser_id);
+CREATE INDEX IF NOT EXISTS idx_ad_clicks_ad ON ad_clicks(ad_id);
+CREATE INDEX IF NOT EXISTS idx_ad_clicks_advertiser_billed ON ad_clicks(advertiser_id, billed);

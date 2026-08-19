@@ -45,6 +45,33 @@
         "value": "11px",
         "createdAt": "2026-08-19T11:44:59.713Z",
         "reason": "DESIGN.md Typography: within the documented Caption 11-13.5px range (illustrative-example tag, the smallest caption instance)"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "10px",
+        "files": [
+          "public/advertise.html"
+        ],
+        "createdAt": "2026-08-19T11:58:32.526Z",
+        "reason": "matches dashboard.html's existing Stripe Elements appearance config (borderRadius:'10px'), reused for consistency, not a new value"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "12px",
+        "files": [
+          "public/dashboard.html"
+        ],
+        "createdAt": "2026-08-19T11:59:53.360Z",
+        "reason": "pre-existing dashboard app-UI theme (built before DESIGN.md existed for the marketing page), not new drift"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "10px",
+        "files": [
+          "public/dashboard.html"
+        ],
+        "createdAt": "2026-08-19T11:59:53.407Z",
+        "reason": "pre-existing Stripe Elements config in the dashboard app-UI theme, matches advertise.html for consistency"
       }
     ]
   }

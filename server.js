@@ -8,8 +8,10 @@ const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
 const { pool } = require("./lib/db.js");
 const { getSessionUser } = require("./lib/auth.js");
+const { getSessionAdvertiser } = require("./lib/advertiser-auth.js");
 const { sendMail, smtpConfigFromEnv } = require("./lib/smtp.js");
 const { startIdleWatcher } = require("./lib/runpod.js");
+const { startAdBillingTicker } = require("./lib/ad-billing.js");
 
 const PORT = process.env.PORT || 8092;
 const NOTIFY_TO = process.env.CONTACT_EMAIL || "durand2511@gmail.com";
@@ -28,6 +30,7 @@ app.use("/api/", rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: tr
 
 app.use(async (req, res, next) => {
   req.user = await getSessionUser(req.cookies?.session).catch(() => null);
+  req.advertiser = await getSessionAdvertiser(req.cookies?.advertiser_session).catch(() => null);
   next();
 });
 
@@ -35,6 +38,8 @@ app.use(require("./routes/auth.js"));
 app.use(require("./routes/employees.js"));
 app.use(require("./routes/documents.js"));
 app.use(require("./routes/billing.js"));
+app.use(require("./routes/advertisers.js"));
+app.use(require("./routes/ads.js"));
 
 function loadWaitlist() {
   try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch { return []; }
@@ -79,6 +84,7 @@ async function main() {
   const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
   await pool.query(schema); // idempotent (CREATE TABLE/INDEX IF NOT EXISTS) — safe to run every boot
   startIdleWatcher();
+  startAdBillingTicker();
   app.listen(PORT, () => console.log("vanKonijnenburg listening on :" + PORT));
 }
 main();

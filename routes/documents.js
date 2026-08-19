@@ -4,7 +4,7 @@ const express = require("express");
 const multer = require("multer");
 const { pool } = require("../lib/db.js");
 const { requireAuth } = require("../lib/auth.js");
-const { PLANS, currentMonthKey, overageCents } = require("../lib/plans.js");
+const { currentMonthKey } = require("../lib/plans.js");
 const { analyzeDocument } = require("../lib/model-client.js");
 
 const router = express.Router();
@@ -49,15 +49,7 @@ function safeFilename(name) {
 router.post("/api/documents", requireAuth, upload.single("file"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file received." });
 
-  const { rows: [company] } = await pool.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id]);
   const month = currentMonthKey();
-  const { rows: [usage] } = await pool.query(
-    "SELECT * FROM usage_counters WHERE company_id = $1 AND month = $2",
-    [company.id, month],
-  );
-  const complexCount = usage?.complex_count || 0;
-  const kleinCount = usage?.klein_count || 0;
-
   let text;
   try {
     text = await extractText(req.file);
@@ -66,10 +58,7 @@ router.post("/api/documents", requireAuth, upload.single("file"), async (req, re
   }
   const complexity = classify(text);
 
-  const plan = PLANS[company.plan];
-  const wouldBeExtra = complexity === "complex" && complexCount >= plan.includedComplex;
-
-  const companyDir = path.join(DATA_DIR, "uploads", String(company.id));
+  const companyDir = path.join(DATA_DIR, "uploads", String(req.user.company_id));
   fs.mkdirSync(companyDir, { recursive: true });
   const storagePath = path.join(companyDir, `${Date.now()}-${safeFilename(req.file.originalname)}`);
   fs.writeFileSync(storagePath, req.file.buffer);
@@ -78,19 +67,21 @@ router.post("/api/documents", requireAuth, upload.single("file"), async (req, re
   const { rows: [doc] } = await pool.query(
     `INSERT INTO documents (company_id, uploaded_by, filename, storage_path, size_bytes, complexity)
      VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, filename, complexity, status, created_at`,
-    [company.id, req.user.id, req.file.originalname, storagePath, req.file.size, complexity],
+    [req.user.company_id, req.user.id, req.file.originalname, storagePath, req.file.size, complexity],
   );
 
+  // Usage is tracked for internal analytics only now (the product is free to use) -- no plan/quota
+  // enforcement happens against these counters.
   await pool.query(
     `INSERT INTO usage_counters (company_id, month, complex_count, klein_count)
      VALUES ($1, $2, $3, $4)
      ON CONFLICT (company_id, month) DO UPDATE SET
        complex_count = usage_counters.complex_count + $3,
        klein_count = usage_counters.klein_count + $4`,
-    [company.id, month, complexity === "complex" ? 1 : 0, complexity === "klein" ? 1 : 0],
+    [req.user.company_id, month, complexity === "complex" ? 1 : 0, complexity === "klein" ? 1 : 0],
   );
 
-  res.status(201).json({ document: doc, overage: wouldBeExtra, extraCostEuroCents: wouldBeExtra ? plan.extraComplexEuroCents : 0 });
+  res.status(201).json({ document: doc });
 });
 
 router.get("/api/documents", requireAuth, async (req, res) => {
@@ -159,23 +150,15 @@ router.get("/api/documents/:id/queries", requireAuth, async (req, res) => {
 });
 
 router.get("/api/usage", requireAuth, async (req, res) => {
-  const { rows: [company] } = await pool.query("SELECT plan FROM companies WHERE id = $1", [req.user.company_id]);
   const month = currentMonthKey();
   const { rows: [usage] } = await pool.query(
     "SELECT * FROM usage_counters WHERE company_id = $1 AND month = $2",
     [req.user.company_id, month],
   );
-  const complexCount = usage?.complex_count || 0;
-  const kleinCount = usage?.klein_count || 0;
-  const plan = PLANS[company.plan];
   res.json({
-    plan: company.plan,
     month,
-    complexUsed: complexCount,
-    complexIncluded: plan.includedComplex,
-    kleinUsed: kleinCount,
-    kleinIncluded: plan.includedKlein === Infinity ? "unlimited" : plan.includedKlein,
-    overageEuroCents: overageCents(company.plan, complexCount, kleinCount),
+    complexUsed: usage?.complex_count || 0,
+    kleinUsed: usage?.klein_count || 0,
   });
 });
 
