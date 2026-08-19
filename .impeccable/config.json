@@ -72,6 +72,15 @@
         ],
         "createdAt": "2026-08-19T11:59:53.407Z",
         "reason": "pre-existing Stripe Elements config in the dashboard app-UI theme, matches advertise.html for consistency"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "22px",
+        "files": [
+          "public/dashboard.html"
+        ],
+        "createdAt": "2026-08-19T12:20:09.817Z",
+        "reason": "pre-existing dashboard app-UI h1 size, used identically across every view (Documents/Usage/Employees/Messages), not new drift"
       }
     ]
   }
