@@ -15,7 +15,11 @@ const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
 // customer documents show what actually separates the two tiers in practice.
 const COMPLEX_WORD_THRESHOLD = 2500; // ~5 pages
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
+// Long documents are the whole point of this product (full annual reports, entire audit files,
+// multi-hundred-page prospectuses) -- 200MB comfortably covers even a large scanned PDF, and the
+// analysis pipeline itself has no length cap: model_server.py chunks the full document text and
+// processes every chunk, it never truncates.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 async function extractText(file) {
   const ext = path.extname(file.originalname).toLowerCase();

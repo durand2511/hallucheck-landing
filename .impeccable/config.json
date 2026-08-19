@@ -1,0 +1,51 @@
+{
+  "buildPath": "comp",
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-radius",
+        "value": "4px",
+        "createdAt": "2026-08-19T11:44:59.482Z",
+        "reason": "DESIGN.md Shapes: focus-ring outline corner, a micro decoration scaled to its own 2.5px outline width, not a card-scale step"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "3px",
+        "createdAt": "2026-08-19T11:44:59.520Z",
+        "reason": "DESIGN.md Shapes: brand-mark square (11x11px), a micro decoration scaled to its own size, not a card-scale step"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "2px",
+        "createdAt": "2026-08-19T11:44:59.559Z",
+        "reason": "DESIGN.md Shapes: segment-row bullet square (7x7px), a micro decoration scaled to its own size, not a card-scale step"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "19px",
+        "createdAt": "2026-08-19T11:44:59.598Z",
+        "reason": "DESIGN.md Typography: brand wordmark logotype size, fixed and distinct from the ramp by definition"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "18px",
+        "createdAt": "2026-08-19T11:44:59.635Z",
+        "reason": "DESIGN.md Typography: within the documented Body 15-18px range (hero subtext, the largest body instance)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "17px",
+        "createdAt": "2026-08-19T11:44:59.674Z",
+        "reason": "DESIGN.md Typography: within the documented Data 13-17px range (chart percentage, the largest data instance)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "11px",
+        "createdAt": "2026-08-19T11:44:59.713Z",
+        "reason": "DESIGN.md Typography: within the documented Caption 11-13.5px range (illustrative-example tag, the smallest caption instance)"
+      }
+    ]
+  }
+}

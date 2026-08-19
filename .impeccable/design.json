@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-19T13:45:00Z",
+  "title": "Design System: vanKonijnenburg",
+  "extensions": {
+    "colorMeta": {
+      "engineered-blue": { "role": "primary", "displayName": "Engineered Blue", "canonical": "#1345C0" },
+      "engineered-blue-dark": { "role": "primary-hover", "displayName": "Engineered Blue Dark", "canonical": "#0D3391" },
+      "ground": { "role": "neutral", "displayName": "Cool Ground", "canonical": "#F5F8FC" },
+      "surface": { "role": "neutral", "displayName": "Surface White", "canonical": "#FFFFFF" },
+      "ink": { "role": "neutral", "displayName": "Near-Black Ink", "canonical": "#0B1220" },
+      "muted": { "role": "neutral", "displayName": "Muted Slate", "canonical": "#4B5563" },
+      "muted-quiet": { "role": "neutral", "displayName": "Quiet Slate", "canonical": "#6B7684" },
+      "border": { "role": "neutral", "displayName": "Hairline Border", "canonical": "#E1E7F0" },
+      "border-strong": { "role": "neutral", "displayName": "Strong Border", "canonical": "#C7D2E0" },
+      "comparison-gray": { "role": "status", "displayName": "Comparison Gray", "canonical": "#C7CFDA" },
+      "verified-green": { "role": "status-icon", "displayName": "Verified Green (icon-only)", "canonical": "#16A34A" },
+      "verified-green-text": { "role": "status-text", "displayName": "Verified Green (text-safe)", "canonical": "#166534" },
+      "verified-tint": { "role": "status-tint", "displayName": "Verified Tint Wash", "canonical": "#E9F7EE" },
+      "blue-tint": { "role": "primary-tint", "displayName": "Blue Tint Wash", "canonical": "#EAF0FC" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display / H1", "purpose": "Hero headline only." },
+      "body": { "displayName": "Body", "purpose": "Paragraph copy, 60-70ch measure." },
+      "data": { "displayName": "Data / Mono", "purpose": "Every number, price, percentage, and quoted citation — the 'this is verifiable' register." }
+    },
+    "shadows": [
+      { "name": "hero-lift", "value": "0 1px 2px rgba(15,23,42,.04), 0 12px 32px -16px rgba(19,69,192,.16)", "purpose": "The comparison chart card only — the page's single most important proof element." }
+    ],
+    "motion": [
+      { "name": "chart-fill", "value": "transform 1.1s cubic-bezier(.16,1,.3,1)", "purpose": "One-time bar-fill reveal on scroll-into-view via transform:scaleX(), never width. Respects prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "tablet", "value": "820px" },
+      { "name": "mobile", "value": "640px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Solid engineered-blue pill, used for Register/primary actions.",
+      "html": "<a class=\"ds-btn-primary\" href=\"#\">Register</a>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-family: Manrope, sans-serif; font-weight: 700; font-size: 16px; border-radius: 999px; padding: 14px 30px; background: #1345C0; color: #fff; border: 1.5px solid transparent; transition: background .15s, transform .1s; } .ds-btn-primary:hover { background: #0D3391; } .ds-btn-primary:active { transform: scale(.98); } .ds-btn-primary:focus-visible { outline: 2.5px solid #1345C0; outline-offset: 3px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Outline pill, used for Log in / secondary actions.",
+      "html": "<a class=\"ds-btn-ghost\" href=\"#\">Log in</a>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; font-family: Manrope, sans-serif; font-weight: 700; font-size: 16px; border-radius: 999px; padding: 14px 30px; background: transparent; color: #0B1220; border: 1.5px solid #C7D2E0; transition: border-color .15s, color .15s, transform .1s; } .ds-btn-ghost:hover { border-color: #1345C0; color: #1345C0; } .ds-btn-ghost:active { transform: scale(.98); }"
+    },
+    {
+      "name": "Comparison Chart Row",
+      "kind": "custom",
+      "refersTo": null,
+      "description": "Signature component: one row of the hero comparison chart (label, animated fill track, mono percentage).",
+      "html": "<div class=\"ds-chart-row\"><div class=\"ds-chart-label\">vanKonijnenburg</div><div class=\"ds-chart-track\"><div class=\"ds-chart-fill\" style=\"--w:99%\"></div></div><div class=\"ds-chart-pct\">99%</div></div>",
+      "css": ".ds-chart-row { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; font-family: Manrope, sans-serif; } .ds-chart-label { width: 132px; flex-shrink: 0; font-weight: 700; font-size: 14.5px; color: #0B1220; } .ds-chart-track { flex: 1; height: 30px; background: #F5F8FC; border-radius: 6px; overflow: hidden; position: relative; } .ds-chart-fill { position: absolute; inset: 0 auto 0 0; width: var(--w); border-radius: 6px; background: #1345C0; transform: scaleX(1); transform-origin: left center; } .ds-chart-pct { width: 56px; flex-shrink: 0; text-align: right; font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 17px; color: #0B1220; }"
+    },
+    {
+      "name": "Citation Block",
+      "kind": "card",
+      "refersTo": null,
+      "description": "Verified-tint quote block replacing a colored border-left accent; used wherever the product shows a source citation.",
+      "html": "<div class=\"ds-cite\"><span>&quot;Revenue was 500,000 euros in 2025.&quot; &mdash; quoted verbatim from the uploaded document</span></div>",
+      "css": ".ds-cite { padding: 14px 16px; border-radius: 8px; background: #E9F7EE; color: #166534; font-size: 13.5px; font-style: italic; line-height: 1.5; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Audit Trail",
+    "overview": "vanKonijnenburg reads financial documents and answers questions about them, backing every claim with an exact citation from the source — the product's entire pitch is that you verify it yourself instead of trusting a black box. The visual system takes that literally: it borrows the grammar of an audit workpaper — precise rows, tabular numerals, a single functional color reserved for 'verified' marks — and renders it in a crisp, modern SaaS register rather than a literal paper/ledger pastiche. Nothing about the page tries to look old or textured; the ledger reference is structural (rows, hairlines, tabular alignment), not material.\n\nThe system deliberately refuses two category defaults: the dark-navy-plus-neon-gradient 'AI product' look (the incumbent site's previous identity), and the generic three-stat hero-metric wall. Proof lives in one committed comparison chart and a single-row data strip instead, and the marketing page practices what the product preaches — its own headline stat carries a 'see methodology' citation, the same mechanism the product sells.",
+    "keyCharacteristics": [
+      "One committed engineered blue carries brand, primary actions, links, and the chart's 'us' bar — never diluted into a rainbow of accent colors.",
+      "A single reserved green exists only for verified/citation marks — a functional color code, never decorative.",
+      "Tabular monospace numerals for every stat, price, and quoted citation; proportional Manrope for everything else.",
+      "Comparison and association (pricing, market segments) render as rows and tables, never as grids of identical icon-cards."
+    ],
+    "rules": [
+      { "name": "The One Blue Rule", "body": "Exactly one saturated color carries brand and action. A second accent is never introduced for 'variety' — differentiation comes from weight, size, and position.", "section": "colors" },
+      { "name": "The Green-Means-Verified Rule", "body": "Green never appears for anything except a citation or verification mark.", "section": "colors" },
+      { "name": "The Mono-Means-Measured Rule", "body": "JetBrains Mono is reserved for numbers, prices, and direct quotes — data with a verifiable source. Never a costume for 'technical'.", "section": "typography" },
+      { "name": "The Row-Survives Rule", "body": "Any layout organizing comparable items must keep the row/column relationship legible at every breakpoint — collapse to horizontal scroll before collapsing to a flat unlabeled stack.", "section": "layout" },
+      { "name": "The One Shadow Rule", "body": "Only the page's single most important card (the comparison chart) lifts off the ground. Every other card sits flush, bordered, flat.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do reserve engineered blue for brand, action, and the 'us' data series.",
+      "Do render every number, price, and quoted source in JetBrains Mono with tabular numerals.",
+      "Do keep comparison content in row/table form, collapsing to horizontal scroll rather than a flat stack on narrow screens.",
+      "Do use verified-tint background washes for citation/quote emphasis instead of colored borders.",
+      "Do label any illustrative/demo content explicitly."
+    ],
+    "donts": [
+      "Don't add a kicker or eyebrow badge above a heading.",
+      "Don't use a colored border-left/border-right heavier than 1px on any card, list item, or callout.",
+      "Don't render comparable sets as identical icon-plus-heading-plus-text cards.",
+      "Don't animate width/height/padding/margin for any data visualization or transition.",
+      "Don't introduce a second saturated accent color.",
+      "Don't use the verified green (#16A34A) as text color."
+    ]
+  }
+}
