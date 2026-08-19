@@ -66,8 +66,10 @@ CREATE TABLE IF NOT EXISTS document_queries (
   answer TEXT,
   citations_json JSONB,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'done', 'failed')),
+  error_message TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE document_queries ADD COLUMN IF NOT EXISTS error_message TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_documents_company ON documents(company_id);
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);

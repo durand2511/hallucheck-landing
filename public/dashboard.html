@@ -79,6 +79,12 @@
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let me = null;
 let currentDocId = null;
+let gpuStatus = 'stopped';
+let pollTimer = null;
+
+async function pollGpuStatus() {
+  try { gpuStatus = (await api('/api/gpu-status')).status; } catch { /* non-fatal, keep last known */ }
+}
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -166,7 +172,12 @@ async function uploadFile(file) {
   }
 }
 
+function stopPolling() {
+  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+}
+
 async function openDocument(id) {
+  stopPolling();
   currentDocId = id;
   const { document: doc } = await api(`/api/documents/${id}`);
   document.getElementById('docTitle').textContent = doc.filename;
@@ -198,8 +209,24 @@ function renderAnswer(answer, citations) {
 }
 
 async function loadThread() {
+  const docIdAtRequestTime = currentDocId;
   const { queries } = await api(`/api/documents/${currentDocId}/queries`);
+  if (currentDocId !== docIdAtRequestTime) return; // navigated to a different document while this was in flight
   renderThread(queries);
+
+  stopPolling();
+  if (queries.some((q) => q.status === 'pending')) {
+    pollTimer = setTimeout(async () => {
+      await pollGpuStatus();
+      if (currentDocId === docIdAtRequestTime) await loadThread();
+    }, 3000);
+  }
+}
+
+function pendingStatusText() {
+  if (gpuStatus === 'starting') return 'Starting the analysis GPU — this can take 1-2 minutes on a cold start...';
+  if (gpuStatus === 'ready') return 'Analyzing your document...';
+  return 'Queued — preparing the analysis GPU...';
 }
 
 function renderThread(queries) {
@@ -207,11 +234,18 @@ function renderThread(queries) {
   thread.innerHTML = queries.map((q) => `
     <div class="qa">
       <div class="q">${esc(q.question)}</div>
-      ${q.status === 'pending' ? `<div class="coldstart"><span class="spinner"></span> Model is analyzing (a cold GPU start can take 1-2 minutes)...</div>` : ''}
+      ${q.status === 'pending' ? `<div class="coldstart"><span class="spinner"></span> ${esc(pendingStatusText())}</div>` : ''}
       ${q.status === 'done' ? renderAnswer(q.answer, q.citations_json) : ''}
-      ${q.status === 'failed' ? `<p class="msg err">Analysis failed — please try again.</p>` : ''}
+      ${q.status === 'failed' ? `<p class="msg err">Analysis failed${q.error_message ? ': ' + esc(q.error_message) : ' — please try again.'}</p>` : ''}
       ${q.status === 'done' ? `<div class="ad-slot" data-query-id="${q.id}"></div>` : ''}
     </div>`).join('') || `<p class="muted">No questions asked about this document yet.</p>`;
+
+  const askBtn = document.getElementById('askBtn');
+  const questionInput = document.getElementById('questionInput');
+  const stillPending = queries.some((q) => q.status === 'pending');
+  askBtn.disabled = stillPending;
+  questionInput.disabled = stillPending;
+  askBtn.textContent = stillPending ? 'Waiting for the current question to finish...' : 'Ask question';
 
   thread.querySelectorAll('.ad-slot').forEach((el) => loadAdsForQuery(el, Number(el.dataset.queryId)));
 
@@ -271,31 +305,25 @@ async function loadAdsForQuery(slotEl, queryId) {
   }));
 }
 
-document.getElementById('backToDocs').addEventListener('click', () => { showView('documents'); loadDocuments(); });
+document.getElementById('backToDocs').addEventListener('click', () => { stopPolling(); showView('documents'); loadDocuments(); });
 
+// The Ask button and textarea are disabled by renderThread() itself whenever any query for this
+// document is still "pending" -- so a click here always means it's genuinely safe to submit, and
+// the button can't be double-clicked into firing two overlapping analyses on the same document.
 document.getElementById('askBtn').addEventListener('click', async () => {
   const input = document.getElementById('questionInput');
   const question = input.value.trim();
   if (!question) return;
-  const btn = document.getElementById('askBtn');
   const msg = document.getElementById('askMsg');
-  btn.disabled = true; msg.className = 'msg'; msg.textContent = '';
+  msg.className = 'msg'; msg.textContent = '';
   input.value = '';
-
-  const thread = document.getElementById('chatThread');
-  const placeholder = document.createElement('div');
-  placeholder.className = 'qa';
-  placeholder.innerHTML = `<div class="q">${esc(question)}</div><div class="coldstart"><span class="spinner"></span> Model is analyzing (a cold GPU start can take 1-2 minutes)...</div>`;
-  thread.appendChild(placeholder);
+  await pollGpuStatus();
 
   try {
     await api(`/api/documents/${currentDocId}/query`, { method: 'POST', body: JSON.stringify({ question }) });
     await loadThread();
   } catch (err) {
     msg.textContent = err.message; msg.className = 'msg err';
-    placeholder.remove();
-  } finally {
-    btn.disabled = false;
   }
 });
 document.getElementById('questionInput').addEventListener('keydown', (e) => {

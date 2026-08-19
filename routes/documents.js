@@ -6,6 +6,7 @@ const { pool } = require("../lib/db.js");
 const { requireAuth } = require("../lib/auth.js");
 const { currentMonthKey } = require("../lib/plans.js");
 const { analyzeDocument } = require("../lib/model-client.js");
+const { getPodRow } = require("../lib/runpod.js");
 
 const router = express.Router();
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
@@ -104,6 +105,12 @@ router.get("/api/documents/:id", requireAuth, async (req, res) => {
 // The core interaction: upload once, then ask as many questions as needed. Each question is its
 // own row so the UI can show a running Q&A thread with citations per answer — asking a follow-up
 // question does NOT count against the monthly document quota (only the initial upload does).
+//
+// Responds as soon as the query row exists, WITHOUT waiting for the analysis itself -- a cold
+// RunPod start can take 1-2 minutes, and a single request held open that long risks Render's own
+// gateway timeout on top of just being a bad UX (the button can't show real progress while it's
+// blocked on one giant fetch). The frontend polls GET /queries + GET /gpu-status instead, so it
+// can show "starting the GPU" vs "analyzing" as distinct, honest states.
 router.post("/api/documents/:id/query", requireAuth, async (req, res) => {
   const question = String(req.body?.question || "").trim();
   if (!question) return res.status(400).json({ error: "Please enter a question about the document." });
@@ -118,8 +125,9 @@ router.post("/api/documents/:id/query", requireAuth, async (req, res) => {
     "INSERT INTO document_queries (document_id, asked_by, question) VALUES ($1, $2, $3) RETURNING *",
     [doc.id, req.user.id, question],
   );
-
   await pool.query("UPDATE documents SET status = 'analyzing' WHERE id = $1", [doc.id]);
+  res.status(202).json({ query });
+
   try {
     const text = fs.readFileSync(doc.storage_path + ".txt", "utf-8");
     const result = await analyzeDocument(question, text);
@@ -128,12 +136,15 @@ router.post("/api/documents/:id/query", requireAuth, async (req, res) => {
       [result.answer, JSON.stringify(result.citations || []), query.id],
     );
     await pool.query("UPDATE documents SET status = 'done', analyzed_at = now() WHERE id = $1", [doc.id]);
-    res.json({ query: { ...query, answer: result.answer, citations: result.citations, status: "done" } });
   } catch (err) {
-    await pool.query("UPDATE document_queries SET status = 'failed' WHERE id = $1", [query.id]);
+    await pool.query("UPDATE document_queries SET status = 'failed', error_message = $1 WHERE id = $2", [err.message, query.id]);
     await pool.query("UPDATE documents SET status = 'failed' WHERE id = $1", [doc.id]);
-    res.status(502).json({ error: "Analysis failed: " + err.message });
   }
+});
+
+router.get("/api/gpu-status", requireAuth, async (req, res) => {
+  const pod = await getPodRow();
+  res.json({ status: pod.status });
 });
 
 router.get("/api/documents/:id/queries", requireAuth, async (req, res) => {
@@ -143,7 +154,7 @@ router.get("/api/documents/:id/queries", requireAuth, async (req, res) => {
   );
   if (!doc) return res.status(404).json({ error: "Document not found." });
   const { rows } = await pool.query(
-    "SELECT id, question, answer, citations_json, status, created_at FROM document_queries WHERE document_id = $1 ORDER BY created_at",
+    "SELECT id, question, answer, citations_json, status, error_message, created_at FROM document_queries WHERE document_id = $1 ORDER BY created_at",
     [doc.id],
   );
   res.json({ queries: rows });
