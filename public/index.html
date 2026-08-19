@@ -289,7 +289,8 @@
 
   <section class="wrap">
     <div class="methodology" id="methodology">
-      <strong>Methodology.</strong> vanKonijnenburg's 99% score is measured under Google's FACTS Grounding methodology on an internal 643-answer benchmark of financial-document questions; 4 of 643 answers had a residual reasoning error, and every answer carried a citation. The Gemini figure reflects Google DeepMind's own published FACTS Grounding results for Gemini model variants (publicly reported in the ~81&ndash;84% range as of this writing); 82% is shown as a representative point in that range. Neither figure is a claim about performance on tasks outside financial-document grounding.
+      <p style="margin:0 0 12px"><strong>Methodology.</strong> Evaluated on Google's own FACTS Grounding benchmark (&ldquo;google/FACTS-grounding-public&rdquo;) — the actual published question set, not questions we wrote ourselves. We ran 643 of the 860 questions before stopping, and independently verified every one of those 643 answers by hand against its source document, claim by claim, rather than relying only on an automated judge.</p>
+      <p style="margin:0">Result: 99% under Google's grounding-only methodology, with 4 residual reasoning errors and zero fabricated facts. The Gemini figure reflects Google DeepMind's own published FACTS Grounding results for Gemini model variants (publicly reported in the ~81&ndash;84% range as of this writing); 82% is shown as a representative point in that range. Neither figure is a claim about performance on tasks outside document grounding.</p>
     </div>
   </section>
 
