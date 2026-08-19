@@ -40,7 +40,10 @@
       </div>
 
       <div id="view-doc-detail" style="display:none">
-        <button class="btn secondary" id="backToDocs" style="margin-bottom:16px">← Back to documents</button>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+          <button class="btn secondary" id="backToDocs">← Back to documents</button>
+          <span class="badge" id="podStatusBadge">● Checking analysis engine...</span>
+        </div>
         <h1 id="docTitle" style="font-size:20px"></h1>
         <p class="muted" id="docMeta" style="margin-top:0"></p>
 
@@ -81,9 +84,31 @@ let me = null;
 let currentDocId = null;
 let gpuStatus = 'stopped';
 let pollTimer = null;
+let statusTimer = null;
 
 async function pollGpuStatus() {
   try { gpuStatus = (await api('/api/gpu-status')).status; } catch { /* non-fatal, keep last known */ }
+  updatePodBadge();
+}
+
+function updatePodBadge() {
+  const badge = document.getElementById('podStatusBadge');
+  if (!badge) return;
+  if (gpuStatus === 'ready') { badge.textContent = '🟢 Awake'; badge.className = 'badge ok'; }
+  else if (gpuStatus === 'starting') { badge.textContent = '🟡 Waking up...'; badge.className = 'badge warn'; }
+  else if (gpuStatus === 'stopping') { badge.textContent = '🟡 Shutting down...'; badge.className = 'badge warn'; }
+  else { badge.textContent = '⚪ Asleep'; badge.className = 'badge'; }
+}
+
+// Keeps the Awake/Asleep badge live even when no question is currently in flight, so it reflects
+// the pod's real state (e.g. it going back to sleep 1 minute after the last analysis) at a glance.
+function startStatusPolling() {
+  stopStatusPolling();
+  pollGpuStatus();
+  statusTimer = setInterval(pollGpuStatus, 15000);
+}
+function stopStatusPolling() {
+  if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
 }
 
 async function api(path, opts = {}) {
@@ -183,6 +208,7 @@ async function openDocument(id) {
   document.getElementById('docTitle').textContent = doc.filename;
   document.getElementById('docMeta').textContent = `${doc.complexity === 'complex' ? 'Complex document' : 'Small document'} · uploaded ${new Date(doc.created_at).toLocaleString('en-GB')}`;
   showView('doc-detail');
+  startStatusPolling();
   await loadThread();
 }
 
@@ -224,7 +250,7 @@ async function loadThread() {
 }
 
 function pendingStatusText() {
-  if (gpuStatus === 'starting') return 'Starting the analysis GPU — this can take 1-2 minutes on a cold start...';
+  if (gpuStatus === 'starting') return 'Pod waking up — this can take a few minutes on a cold start...';
   if (gpuStatus === 'ready') return 'Analyzing your document...';
   return 'Queued — preparing the analysis GPU...';
 }
@@ -305,7 +331,7 @@ async function loadAdsForQuery(slotEl, queryId) {
   }));
 }
 
-document.getElementById('backToDocs').addEventListener('click', () => { stopPolling(); showView('documents'); loadDocuments(); });
+document.getElementById('backToDocs').addEventListener('click', () => { stopPolling(); stopStatusPolling(); showView('documents'); loadDocuments(); });
 
 // The Ask button and textarea are disabled by renderThread() itself whenever any query for this
 // document is still "pending" -- so a click here always means it's genuinely safe to submit, and
