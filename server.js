@@ -1,5 +1,6 @@
 const path = require("node:path");
 const fs = require("node:fs");
+const crypto = require("node:crypto");
 require("express-async-errors"); // without this, a thrown/rejected error inside an async route
 // handler crashes the whole process (Express 4 doesn't forward async errors on its own) — that
 // would take the entire multi-tenant server down over a single bad request from one company.
@@ -19,6 +20,29 @@ const DATA_FILE = path.join(__dirname, "data", "waitlist.json");
 
 const app = express();
 app.set("trust proxy", 1); // Render sits behind a reverse proxy — needed for correct client IPs in rate limiting
+
+// Site-wide HTTP Basic Auth gate while this is still in testing — keeps random visitors from
+// triggering real GPU spend on the analysis pipeline. /healthz stays open so Render's own health
+// checks don't start failing deploys, and the Stripe webhook stays open since Stripe's servers
+// can't supply these credentials. Opt-in via env vars so removing them later fully disables this.
+app.use((req, res, next) => {
+  if (req.path === "/healthz" || req.path === "/api/billing/webhook") return next();
+  const SITE_USER = process.env.SITE_AUTH_USER;
+  const SITE_PASS = process.env.SITE_AUTH_PASS;
+  if (!SITE_USER || !SITE_PASS) return next();
+
+  const [scheme, encoded] = (req.headers.authorization || "").split(" ");
+  if (scheme === "Basic" && encoded) {
+    const [user, pass] = Buffer.from(encoded, "base64").toString("utf-8").split(":");
+    const userBuf = Buffer.from(user || "");
+    const passBuf = Buffer.from(pass || "");
+    const userOk = userBuf.length === Buffer.byteLength(SITE_USER) && crypto.timingSafeEqual(userBuf, Buffer.from(SITE_USER));
+    const passOk = passBuf.length === Buffer.byteLength(SITE_PASS) && crypto.timingSafeEqual(passBuf, Buffer.from(SITE_PASS));
+    if (userOk && passOk) return next();
+  }
+  res.set("WWW-Authenticate", 'Basic realm="vanKonijnenburg"');
+  res.status(401).send("Authentication required.");
+});
 
 // The Stripe webhook route needs the untouched raw request body to verify its signature (see
 // routes/billing.js), so it must be excluded from the global JSON parser or that verification
