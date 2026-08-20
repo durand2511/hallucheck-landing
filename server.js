@@ -11,7 +11,6 @@ const { pool } = require("./lib/db.js");
 const { getSessionUser } = require("./lib/auth.js");
 const { getSessionAdvertiser } = require("./lib/advertiser-auth.js");
 const { sendMail, smtpConfigFromEnv } = require("./lib/smtp.js");
-const { startIdleWatcher } = require("./lib/runpod.js");
 const { startAdBillingTicker } = require("./lib/ad-billing.js");
 
 const PORT = process.env.PORT || 8092;
@@ -107,7 +106,6 @@ app.use((err, req, res, next) => {
 async function main() {
   const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
   await pool.query(schema); // idempotent (CREATE TABLE/INDEX IF NOT EXISTS) — safe to run every boot
-  startIdleWatcher();
   startAdBillingTicker();
   app.listen(PORT, () => console.log("vanKonijnenburg listening on :" + PORT));
 }

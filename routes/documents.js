@@ -5,8 +5,7 @@ const multer = require("multer");
 const { pool } = require("../lib/db.js");
 const { requireAuth } = require("../lib/auth.js");
 const { currentMonthKey } = require("../lib/plans.js");
-const { analyzeDocument } = require("../lib/model-client.js");
-const { getPodRow, forceReset } = require("../lib/runpod.js");
+const { analyzeDocument, getStatus } = require("../lib/serverless-client.js");
 
 const router = express.Router();
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, "..", "data");
@@ -159,16 +158,14 @@ router.post("/api/documents/:id/query", requireAuth, async (req, res) => {
 });
 
 router.get("/api/gpu-status", requireAuth, async (req, res) => {
-  const pod = await getPodRow();
-  res.json({ status: pod.status });
+  const status = await getStatus().catch(() => "stopped");
+  res.json({ status });
 });
 
-// Manual recovery when the GPU state gets stuck pointing at a pod that no longer really exists
-// (see forceReset()'s doc comment in lib/runpod.js). Any authenticated user can call this --
-// worst case it just terminates an already-dead pod id and resets bookkeeping, which is always
-// safe to do.
+// No-op kept for the existing frontend button/flow -- Serverless has no pod row of our own that
+// can get stuck pointing at a dead pod (RunPod's own worker scaler owns that state entirely), so
+// there's nothing left to reset. Kept as a route so the old client code doesn't 404.
 router.post("/api/gpu-status/reset", requireAuth, async (req, res) => {
-  await forceReset();
   res.json({ status: "stopped" });
 });
 
