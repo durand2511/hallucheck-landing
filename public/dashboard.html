@@ -1,115 +1,47 @@
 <!doctype html>
-<html lang="en">
+<html lang="nl">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard — vanKonijnenburg</title>
+<title>Team — vanKonijnenburg</title>
 <link rel="stylesheet" href="/app.css">
 </head>
 <body>
   <div class="app-shell">
     <nav class="sidebar">
       <div class="brand" style="padding:8px 14px 20px"><span class="dot"></span> vanKonijnenburg</div>
-      <a href="#documents" data-view="documents" class="active">Documents</a>
-      <a href="#usage" data-view="usage">Usage</a>
-      <a href="#employees" data-view="employees" id="employeesLink" style="display:none">Employees</a>
-      <a href="#messages" data-view="messages" id="messagesLink" style="display:none">Messages <span id="unreadBadge" class="badge warn" style="display:none;margin-left:4px;padding:1px 6px;font-size:10px"></span></a>
+      <a href="/documents.html">Documentanalyse</a>
+      <a href="/excel.html" id="navExcel">Excel-templates</a>
+      <a href="/billing.html" id="navBilling" style="display:none">Abonnement</a>
+      <a href="/dashboard.html" class="active">Team</a>
       <div style="flex:1"></div>
-      <a href="/advertise.html" target="_blank">Advertise with us</a>
       <a href="#" id="logoutLink">Log out</a>
     </nav>
+    <script>
+      // Runs synchronously while the page parses, so the sidebar is correct at first paint. The
+      // authoritative role still comes from /api/me a moment later, but waiting for that meant
+      // the Abonnement tab popped into the nav after load (CEO) or flashed past before being
+      // hidden (employee) -- on every single tab switch. This is a RENDERING hint only: the
+      // server refuses billing actions from non-CEOs no matter what is stored here, so a stale
+      // or tampered value changes what you see, never what you can do.
+      try {
+        if (localStorage.getItem('vk_role') === 'ceo') {
+          document.getElementById('navBilling').style.display = '';
+        }
+      } catch (e) { /* private mode / storage disabled: fall back to the post-fetch reveal */ }
+    </script>
 
     <main class="main">
-      <div id="view-documents">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-          <h1 style="font-size:22px">Documents</h1>
-          <span class="badge ok">Free</span>
-        </div>
-
-        <div class="dropzone" id="dropzone">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 16V4M12 4l-4 4M12 4l4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
-          <div>Drag a document here, or click to upload</div>
-          <div class="muted" style="font-size:12px;margin-top:4px">PDF or text file, any length — up to 200MB</div>
-          <input type="file" id="fileInput" accept=".pdf,.txt,.md" style="display:none">
-        </div>
-        <div id="uploadMsg" class="msg"></div>
-
-        <div class="card" style="margin-top:20px;padding:10px 8px">
-          <div id="docList"></div>
-        </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <h1 style="font-size:22px">Team</h1>
+        <button class="btn" id="addEmpBtn" style="display:none">+ Add employee</button>
       </div>
-
-      <div id="view-doc-detail" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
-          <button class="btn secondary" id="backToDocs">← Back to documents</button>
-          <span class="badge" id="podStatusBadge">● Checking analysis engine...</span>
-        </div>
-        <h1 id="docTitle" style="font-size:20px"></h1>
-        <p class="muted" id="docMeta" style="margin-top:0"></p>
-
-        <div class="chat" id="chatThread"></div>
-
-        <div class="card" style="margin-top:16px">
-          <label for="questionInput">Ask a question about this document</label>
-          <textarea id="questionInput" placeholder="E.g. Does the reported revenue match the underlying figures in the document?"></textarea>
-          <button class="btn" id="askBtn" style="margin-top:12px">Ask question</button>
-          <div id="askMsg" class="msg"></div>
-        </div>
-      </div>
-
-      <div id="view-usage" style="display:none">
-        <h1 style="font-size:22px">Usage</h1>
-        <div class="card" id="usageCard"></div>
-      </div>
-
-      <div id="view-messages" style="display:none">
-        <h1 style="font-size:22px;margin-bottom:18px">Messages</h1>
-        <p class="muted" style="margin-top:0">Ads forwarded to you by your team.</p>
-        <div class="card" id="messagesList" style="margin-top:14px"></div>
-      </div>
-
-      <div id="view-employees" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-          <h1 style="font-size:22px">Employees</h1>
-          <button class="btn" id="addEmpBtn">+ Add employee</button>
-        </div>
-        <div class="card" id="empList"></div>
-      </div>
+      <div class="card" id="empList"></div>
     </main>
   </div>
 
 <script>
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let me = null;
-let currentDocId = null;
-let gpuStatus = 'stopped';
-let pollTimer = null;
-let statusTimer = null;
-
-async function pollGpuStatus() {
-  try { gpuStatus = (await api('/api/gpu-status')).status; } catch { /* non-fatal, keep last known */ }
-  updatePodBadge();
-}
-
-function updatePodBadge() {
-  const badge = document.getElementById('podStatusBadge');
-  if (!badge) return;
-  if (gpuStatus === 'ready') { badge.textContent = '🟢 Awake'; badge.className = 'badge ok'; }
-  else if (gpuStatus === 'starting') { badge.textContent = '🟡 Waking up...'; badge.className = 'badge warn'; }
-  else if (gpuStatus === 'stopping') { badge.textContent = '🟡 Shutting down...'; badge.className = 'badge warn'; }
-  else { badge.textContent = '⚪ Asleep'; badge.className = 'badge'; }
-}
-
-// Keeps the Awake/Asleep badge live even when no question is currently in flight, so it reflects
-// the pod's real state (e.g. it going back to sleep 1 minute after the last analysis) at a glance.
-function startStatusPolling() {
-  stopStatusPolling();
-  pollGpuStatus();
-  statusTimer = setInterval(pollGpuStatus, 15000);
-}
-function stopStatusPolling() {
-  if (statusTimer) { clearInterval(statusTimer); statusTimer = null; }
-}
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
@@ -118,302 +50,6 @@ async function api(path, opts = {}) {
   return data;
 }
 
-function showView(name) {
-  ['documents', 'doc-detail', 'usage', 'employees', 'messages'].forEach((v) => {
-    document.getElementById('view-' + v).style.display = v === name ? 'block' : 'none';
-  });
-  document.querySelectorAll('.sidebar a[data-view]').forEach((a) => a.classList.toggle('active', a.dataset.view === name));
-}
-
-async function init() {
-  try {
-    me = await api('/api/me');
-  } catch {
-    window.location.href = '/login.html';
-    return;
-  }
-  if (me.user.role === 'ceo') {
-    document.getElementById('employeesLink').style.display = 'block';
-    document.getElementById('messagesLink').style.display = 'block';
-    refreshUnreadBadge();
-  }
-  loadDocuments();
-
-  document.querySelectorAll('a[data-view]').forEach((a) => a.addEventListener('click', (e) => {
-    e.preventDefault();
-    showView(a.dataset.view);
-    if (a.dataset.view === 'usage') loadUsage();
-    if (a.dataset.view === 'employees') loadEmployees();
-    if (a.dataset.view === 'messages') loadMessages();
-  }));
-  document.getElementById('logoutLink').addEventListener('click', async (e) => {
-    e.preventDefault();
-    await api('/api/logout', { method: 'POST' });
-    window.location.href = '/login.html';
-  });
-}
-
-// --- Documents ---
-async function loadDocuments() {
-  const { documents } = await api('/api/documents');
-  const list = document.getElementById('docList');
-  list.innerHTML = documents.length
-    ? documents.map((d) => `
-      <div class="doc-list-item" data-id="${d.id}">
-        <div>
-          <div class="fname">${esc(d.filename)}</div>
-          <div class="fmeta">${d.complexity === 'complex' ? 'Complex document' : 'Small document'} · ${new Date(d.created_at).toLocaleDateString('en-GB')}</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <span class="badge ${d.status === 'done' ? 'ok' : d.status === 'failed' ? '' : 'warn'}">${d.status}</span>
-          <button class="btn danger" data-delete-id="${d.id}" style="padding:5px 10px;font-size:12px">Delete</button>
-        </div>
-      </div>`).join('')
-    : `<p class="muted" style="padding:16px">No documents uploaded yet.</p>`;
-  list.querySelectorAll('.doc-list-item').forEach((el) => el.addEventListener('click', () => openDocument(Number(el.dataset.id))));
-  list.querySelectorAll('[data-delete-id]').forEach((btn) => btn.addEventListener('click', async (e) => {
-    e.stopPropagation();
-    if (!confirm('Delete this document and all its questions/answers? This cannot be undone.')) return;
-    try {
-      await api(`/api/documents/${btn.dataset.deleteId}`, { method: 'DELETE' });
-      loadDocuments();
-    } catch (err) {
-      alert(err.message);
-    }
-  }));
-}
-
-const dropzone = document.getElementById('dropzone');
-const fileInput = document.getElementById('fileInput');
-dropzone.addEventListener('click', () => fileInput.click());
-['dragover', 'dragleave', 'drop'].forEach((evt) => dropzone.addEventListener(evt, (e) => {
-  e.preventDefault();
-  dropzone.classList.toggle('drag', evt === 'dragover');
-}));
-dropzone.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) uploadFile(e.dataTransfer.files[0]); });
-fileInput.addEventListener('change', () => { if (fileInput.files[0]) uploadFile(fileInput.files[0]); });
-
-async function uploadFile(file) {
-  const msg = document.getElementById('uploadMsg');
-  msg.className = 'msg'; msg.textContent = 'Uploading...';
-  const fd = new FormData();
-  fd.append('file', file);
-  try {
-    const r = await fetch('/api/documents', { method: 'POST', body: fd });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || 'Upload failed.');
-    msg.textContent = 'Uploaded.';
-    msg.className = 'msg ok';
-    loadDocuments();
-  } catch (err) {
-    msg.textContent = err.message; msg.className = 'msg err';
-  }
-}
-
-function stopPolling() {
-  if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-}
-
-async function openDocument(id) {
-  stopPolling();
-  currentDocId = id;
-  const { document: doc } = await api(`/api/documents/${id}`);
-  document.getElementById('docTitle').textContent = doc.filename;
-  document.getElementById('docMeta').textContent = `${doc.complexity === 'complex' ? 'Complex document' : 'Small document'} · uploaded ${new Date(doc.created_at).toLocaleString('en-GB')}`;
-  showView('doc-detail');
-  startStatusPolling();
-  await loadThread();
-}
-
-function splitSentences(text) {
-  return (text.match(/[^.!?]+[.!?]+|\S+$/g) || [text]).map((s) => s.trim()).filter(Boolean);
-}
-
-function renderAnswer(answer, citations) {
-  if (!citations || !citations.length) return `<p>${esc(answer)}</p>`;
-  const sentences = splitSentences(answer);
-  const parts = sentences.map((s, i) => {
-    const c = citations[i];
-    if (!c) return esc(s);
-    const cls = c.grounded ? 'grounded' : 'ungrounded';
-    return `<span class="sentence ${cls}" data-idx="${i}">${esc(s)}</span>`;
-  });
-  const pops = citations.map((c, i) => `
-    <div class="cite-pop" id="pop-${i}">
-      ${c.grounded
-        ? `<div class="quote">"${esc(c.quote)}"</div>`
-        : `<div class="flag">⚠ No supporting passage found in the document — check this statement, it may be a reasoning error or hallucination.</div>`}
-    </div>`).join('');
-  return `<p>${parts.join(' ')}</p>${pops}`;
-}
-
-async function loadThread() {
-  const docIdAtRequestTime = currentDocId;
-  const { queries } = await api(`/api/documents/${currentDocId}/queries`);
-  if (currentDocId !== docIdAtRequestTime) return; // navigated to a different document while this was in flight
-  renderThread(queries);
-
-  stopPolling();
-  if (queries.some((q) => q.status === 'pending')) {
-    pollTimer = setTimeout(async () => {
-      await pollGpuStatus();
-      if (currentDocId === docIdAtRequestTime) await loadThread();
-    }, 3000);
-  }
-}
-
-function pendingStatusText() {
-  if (gpuStatus === 'starting') return 'Pod waking up — this can take a few minutes on a cold start...';
-  if (gpuStatus === 'ready') return 'Analyzing your document...';
-  return 'Queued — preparing the analysis GPU...';
-}
-
-function renderThread(queries) {
-  const thread = document.getElementById('chatThread');
-  thread.innerHTML = queries.map((q) => `
-    <div class="qa">
-      <div class="q">${esc(q.question)}</div>
-      ${q.status === 'pending' ? `<div class="coldstart"><span class="spinner"></span> ${esc(pendingStatusText())}</div>` : ''}
-      ${q.status === 'done' ? renderAnswer(q.answer, q.citations_json) : ''}
-      ${q.status === 'failed' ? `<p class="msg err">Analysis failed${q.error_message ? ': ' + esc(q.error_message) : ' — please try again.'}</p>` : ''}
-      ${q.status === 'done' ? `<div class="ad-slot" data-query-id="${q.id}"></div>` : ''}
-    </div>`).join('') || `<p class="muted">No questions asked about this document yet.</p>`;
-
-  const askBtn = document.getElementById('askBtn');
-  const questionInput = document.getElementById('questionInput');
-  const stillPending = queries.some((q) => q.status === 'pending');
-  askBtn.disabled = stillPending;
-  questionInput.disabled = stillPending;
-  askBtn.textContent = stillPending ? 'Waiting for the current question to finish...' : 'Ask question';
-
-  thread.querySelectorAll('.ad-slot').forEach((el) => loadAdsForQuery(el, Number(el.dataset.queryId)));
-
-  thread.querySelectorAll('.sentence').forEach((el) => el.addEventListener('click', () => {
-    const qaEl = el.closest('.qa');
-    const pop = qaEl.querySelector('#pop-' + el.dataset.idx);
-    qaEl.querySelectorAll('.cite-pop').forEach((p) => { if (p !== pop) p.classList.remove('open'); });
-    pop.classList.toggle('open');
-  }));
-}
-
-// Ads only ever show when the AI itself flagged something unresolved (see the "showAds" logic
-// server-side) -- deliberately rendered in .ad-slot, never inside .qa's answer markup, and with
-// its own distinct styling (.ad-block), so it can never be confused for part of the AI's answer.
-async function loadAdsForQuery(slotEl, queryId) {
-  let data;
-  try {
-    data = await api(`/api/documents/${currentDocId}/queries/${queryId}/ads`);
-  } catch {
-    return;
-  }
-  if (!data.showAds || !data.ads.length) return;
-  const canForward = me.user.role !== 'ceo';
-  slotEl.innerHTML = `
-    <div class="ad-block">
-      <div class="ad-issue">⚠ <span><b>Potential issue found:</b> ${esc(data.issue)} — this couldn't be verified against the document. The services below may be able to help:</span></div>
-      ${data.ads.map((ad) => `
-        <div class="ad-card-row" style="display:flex;gap:8px;align-items:stretch">
-          <a class="ad-card" href="#" style="flex:1" data-ad-id="${ad.id}" data-query-id="${queryId}" data-url="${esc(ad.url)}">
-            <div class="ad-label">Advertisement</div>
-            <div class="ad-title">${esc(ad.title)}</div>
-            <div class="ad-desc">${esc(ad.description)}</div>
-          </a>
-          ${canForward ? `<button class="btn secondary" data-forward-ad="${ad.id}" data-query-id="${queryId}" style="font-size:12px;padding:6px 10px;align-self:center;white-space:nowrap">Forward to CEO</button>` : ''}
-        </div>`).join('')}
-    </div>`;
-  slotEl.querySelectorAll('.ad-card').forEach((el) => el.addEventListener('click', async (e) => {
-    e.preventDefault();
-    try {
-      const r = await api(`/api/ads/${el.dataset.adId}/click`, { method: 'POST', body: JSON.stringify({ queryId: Number(el.dataset.queryId) }) });
-      window.open(r.url, '_blank', 'noopener');
-    } catch {
-      window.open(el.dataset.url, '_blank', 'noopener');
-    }
-  }));
-  slotEl.querySelectorAll('[data-forward-ad]').forEach((btn) => btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    const original = btn.textContent;
-    try {
-      await api(`/api/ads/${btn.dataset.forwardAd}/forward`, { method: 'POST', body: JSON.stringify({ queryId: Number(btn.dataset.queryId) }) });
-      btn.textContent = 'Forwarded ✓';
-    } catch (err) {
-      btn.textContent = 'Failed';
-      btn.disabled = false;
-      setTimeout(() => { btn.textContent = original; }, 2000);
-    }
-  }));
-}
-
-document.getElementById('backToDocs').addEventListener('click', () => { stopPolling(); stopStatusPolling(); showView('documents'); loadDocuments(); });
-
-// The Ask button and textarea are disabled by renderThread() itself whenever any query for this
-// document is still "pending" -- so a click here always means it's genuinely safe to submit, and
-// the button can't be double-clicked into firing two overlapping analyses on the same document.
-document.getElementById('askBtn').addEventListener('click', async () => {
-  const input = document.getElementById('questionInput');
-  const question = input.value.trim();
-  if (!question) return;
-  const msg = document.getElementById('askMsg');
-  msg.className = 'msg'; msg.textContent = '';
-  input.value = '';
-  await pollGpuStatus();
-
-  try {
-    await api(`/api/documents/${currentDocId}/query`, { method: 'POST', body: JSON.stringify({ question }) });
-    await loadThread();
-  } catch (err) {
-    msg.textContent = err.message; msg.className = 'msg err';
-  }
-});
-document.getElementById('questionInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); document.getElementById('askBtn').click(); }
-});
-
-// --- Usage ---
-async function loadUsage() {
-  const u = await api('/api/usage');
-  document.getElementById('usageCard').innerHTML = `
-    <p class="muted" style="margin-top:0">Period: ${u.month} — vanKonijnenburg is free to use.</p>
-    <label>Complex documents analyzed: ${u.complexUsed}</label>
-    <label style="margin-top:22px">Small documents analyzed: ${u.kleinUsed}</label>
-  `;
-}
-
-// --- Messages (CEO's message center: ads forwarded by the team) ---
-async function refreshUnreadBadge() {
-  try {
-    const { unreadCount } = await api('/api/messages');
-    const badge = document.getElementById('unreadBadge');
-    badge.style.display = unreadCount > 0 ? 'inline-block' : 'none';
-    badge.textContent = unreadCount;
-  } catch { /* CEO-only endpoint; harmless if it 403s for a non-CEO */ }
-}
-
-async function loadMessages() {
-  const { messages } = await api('/api/messages');
-  document.getElementById('messagesList').innerHTML = messages.length ? messages.map((m) => `
-    <div class="emp-row" style="align-items:flex-start">
-      <div style="flex:1">
-        <div style="font-weight:600">${esc(m.title)} ${!m.read ? '<span class="badge warn" style="margin-left:6px">New</span>' : ''}</div>
-        <div class="muted" style="font-size:13px;margin-top:2px">${esc(m.description)}</div>
-        <div class="muted" style="font-size:12px;margin-top:6px">Forwarded by ${esc(m.forwarded_by_name || m.forwarded_by_email)} &middot; ${new Date(m.created_at).toLocaleString('en-GB')}</div>
-      </div>
-      <button class="btn secondary" data-id="${m.id}" data-url="${esc(m.website_url)}" style="padding:6px 12px;font-size:13px;white-space:nowrap">Open</button>
-    </div>`).join('') : '<p class="muted" style="padding:12px 0">No forwarded ads yet.</p>';
-
-  document.getElementById('messagesList').querySelectorAll('button[data-id]').forEach((btn) => btn.addEventListener('click', async () => {
-    try {
-      const r = await api(`/api/messages/${btn.dataset.id}/click`, { method: 'POST' });
-      window.open(r.url, '_blank', 'noopener');
-    } catch {
-      window.open(btn.dataset.url, '_blank', 'noopener');
-    }
-    loadMessages();
-    refreshUnreadBadge();
-  }));
-}
-
-// --- Employees ---
 async function loadEmployees() {
   const { employees } = await api('/api/employees');
   document.getElementById('empList').innerHTML = employees.map((e) => `
@@ -422,7 +58,7 @@ async function loadEmployees() {
         <div style="font-weight:500">${esc(e.name || e.email)} ${e.role === 'ceo' ? '<span class="badge plan" style="margin-left:6px">CEO</span>' : ''}</div>
         <div class="muted" style="font-size:13px">${esc(e.email)}</div>
       </div>
-      ${e.role === 'employee' ? `<button class="btn danger" data-id="${e.id}" style="padding:6px 12px;font-size:13px">Remove</button>` : ''}
+      ${e.role === 'employee' && window.__isCeo ? `<button class="btn danger" data-id="${e.id}" style="padding:6px 12px;font-size:13px">Remove</button>` : ''}
     </div>`).join('');
   document.getElementById('empList').querySelectorAll('button[data-id]').forEach((btn) => btn.addEventListener('click', async () => {
     if (!confirm('Remove this employee?')) return;
@@ -444,7 +80,28 @@ document.getElementById('addEmpBtn').addEventListener('click', async () => {
   }
 });
 
-init();
+document.getElementById('logoutLink').addEventListener('click', async (e) => {
+  e.preventDefault();
+  try { localStorage.removeItem('vk_role'); } catch (e) {}
+  await api('/api/logout', { method: 'POST' });
+  window.location.href = '/login.html';
+});
+
+(async () => {
+  let me;
+  try { me = await api('/api/me'); } catch { window.location.href = '/login.html'; return; }
+  const isCeo = me.user.role === 'ceo';
+  // Cache the role for the synchronous nav hint at the top of the page, so the next navigation
+  // paints the correct sidebar immediately instead of correcting it after this fetch returns.
+  try { localStorage.setItem('vk_role', me.user.role); } catch (e) {}
+  if (isCeo) document.getElementById('addEmpBtn').style.display = 'inline-flex';
+  // Billing is a CEO concern: the subscribe/cancel endpoints already refuse anyone else. The
+  // link starts hidden and is revealed here, so employees never see it flash past on load.
+  if (isCeo) document.getElementById('navBilling').style.display = '';
+  window.__isCeo = isCeo;
+  if (me.company.track === 'general') document.getElementById('navExcel').remove();
+  loadEmployees();
+})();
 </script>
 </body>
 </html>

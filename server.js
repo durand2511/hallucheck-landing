@@ -1,3 +1,10 @@
+// Must be the very first thing that runs: several required modules below (lib/db.js, lib/stripe.js,
+// routes/excel.js's Modal-vs-RunPod client selection) read process.env at REQUIRE time, not later --
+// loading .env after those requires would silently leave them all unconfigured. In production
+// (Render) these same variables come from real platform env vars, so dotenv finding no .env file
+// there is expected and harmless (it only fills in gaps, never overrides an already-set var).
+require("dotenv").config();
+
 const path = require("node:path");
 const fs = require("node:fs");
 const crypto = require("node:crypto");
@@ -9,9 +16,8 @@ const cookieParser = require("cookie-parser");
 const rateLimit = require("express-rate-limit");
 const { pool } = require("./lib/db.js");
 const { getSessionUser } = require("./lib/auth.js");
-const { getSessionAdvertiser } = require("./lib/advertiser-auth.js");
 const { sendMail, smtpConfigFromEnv } = require("./lib/smtp.js");
-const { startAdBillingTicker } = require("./lib/ad-billing.js");
+const { seedTemplatesForAllCompanies } = require("./lib/seed-templates.js");
 
 const PORT = process.env.PORT || 8092;
 const NOTIFY_TO = process.env.CONTACT_EMAIL || "durand2511@gmail.com";
@@ -53,16 +59,14 @@ app.use("/api/", rateLimit({ windowMs: 60 * 1000, limit: 60, standardHeaders: tr
 
 app.use(async (req, res, next) => {
   req.user = await getSessionUser(req.cookies?.session).catch(() => null);
-  req.advertiser = await getSessionAdvertiser(req.cookies?.advertiser_session).catch(() => null);
   next();
 });
 
 app.use(require("./routes/auth.js"));
 app.use(require("./routes/employees.js"));
+app.use(require("./routes/excel.js"));
 app.use(require("./routes/documents.js"));
 app.use(require("./routes/billing.js"));
-app.use(require("./routes/advertisers.js"));
-app.use(require("./routes/ads.js"));
 
 function loadWaitlist() {
   try { return JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); } catch { return []; }
@@ -103,10 +107,27 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: "Internal server error" });
 });
 
+// A restart (deploy, crash, or a manual kill during local dev) drops whatever in-flight promises
+// were running an analysis -- the DB row is left at status 'pending' forever with no process left
+// to ever resolve it, and the frontend's poll loop only stops polling once status changes, so the
+// UI would spin indefinitely with no indication anything went wrong. A fresh boot is proof no
+// in-memory work could still be running, so any 'pending' row at this point is provably orphaned.
+async function failOrphanedPendingWork() {
+  const { rowCount: queryCount } = await pool.query(
+    `UPDATE document_queries SET status = 'failed', error_message = 'Onderbroken door een server-herstart. Probeer het opnieuw.' WHERE status = 'pending'`,
+  );
+  const { rowCount: fillCount } = await pool.query(
+    `UPDATE excel_fills SET result_json = jsonb_set(result_json, '{status}', '"failed"') || '{"error":"Onderbroken door een server-herstart. Probeer het opnieuw."}'::jsonb
+     WHERE result_json->>'status' = 'pending'`,
+  );
+  if (queryCount || fillCount) console.log(`[boot] marked ${queryCount} document quer${queryCount === 1 ? "y" : "ies"} and ${fillCount} excel fill(s) as failed (orphaned by restart)`);
+}
+
 async function main() {
   const schema = fs.readFileSync(path.join(__dirname, "schema.sql"), "utf-8");
   await pool.query(schema); // idempotent (CREATE TABLE/INDEX IF NOT EXISTS) — safe to run every boot
-  startAdBillingTicker();
+  await failOrphanedPendingWork();
+  seedTemplatesForAllCompanies().catch((err) => console.error("[boot] template seeding failed:", err.message));
   app.listen(PORT, () => console.log("vanKonijnenburg listening on :" + PORT));
 }
 main();

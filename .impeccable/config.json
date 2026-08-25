@@ -81,6 +81,56 @@
         ],
         "createdAt": "2026-08-19T12:20:09.817Z",
         "reason": "pre-existing dashboard app-UI h1 size, used identically across every view (Documents/Usage/Employees/Messages), not new drift"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "10px",
+        "createdAt": "2026-08-24T16:32:36.754Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(124,155,255,.18)",
+        "createdAt": "2026-08-24T16:32:36.810Z"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "22px",
+        "createdAt": "2026-08-24T16:32:36.863Z"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "12px",
+        "createdAt": "2026-08-24T16:32:36.913Z"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "28px",
+        "createdAt": "2026-08-24T16:32:36.961Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(110,231,199,.12)",
+        "createdAt": "2026-08-24T16:32:37.007Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgba(255,128,128,.12)",
+        "createdAt": "2026-08-24T16:32:54.545Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#232634",
+        "createdAt": "2026-08-24T16:33:39.625Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#9aa0b4",
+        "createdAt": "2026-08-24T16:33:39.677Z"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#eef0f5",
+        "createdAt": "2026-08-24T16:33:39.730Z"
       }
     ]
   }

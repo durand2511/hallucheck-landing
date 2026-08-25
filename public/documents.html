@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentanalyse — vanKonijnenburg</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  .doc-item{display:flex;align-items:center;justify-content:space-between;padding:14px;border-radius:10px;cursor:pointer;transition:.12s;border:1px solid transparent}
+  .doc-item:hover{background:var(--card2)}
+  .doc-item.active{background:var(--card2);border-color:var(--accent2)}
+  .doc-item .dname{font-weight:600;font-size:14.5px}
+  .doc-item .dmeta{font-size:12px;color:var(--muted);margin-top:2px}
+  .doc-item .del{cursor:pointer;font-size:13px;color:var(--muted);padding:4px 6px}
+  .doc-item .del:hover{color:var(--danger)}
+
+  .input-tabs{display:flex;gap:8px;margin-bottom:14px}
+  .input-tab{padding:8px 16px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13.5px;cursor:pointer}
+  .input-tab.active{background:var(--card2);color:var(--text);border-color:var(--accent2)}
+
+  .qa-thread{display:flex;flex-direction:column;gap:16px;margin-bottom:18px}
+  .qa-item{padding:14px 16px;border-radius:10px;background:var(--bg2)}
+  .qa-q{font-weight:600;font-size:14px;margin-bottom:8px}
+  .qa-a{font-size:14px;line-height:1.5}
+  .qa-a.pending{color:var(--muted)}
+  .qa-a.failed{color:var(--danger)}
+  .qa-cites{margin-top:10px;display:flex;flex-direction:column;gap:6px}
+  .qa-cite{font-size:12.5px;color:var(--muted);font-style:italic;padding:8px 10px;border-radius:8px;background:var(--bg1);border-left:2px solid var(--accent2)}
+  .qa-cite.unsupported{border-left-color:var(--danger);color:var(--danger)}
+  .qa-badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;margin-left:8px;vertical-align:middle}
+  .qa-badge.grounded{background:rgba(110,231,199,.12);color:var(--accent)}
+  .qa-badge.ungrounded{background:rgba(255,128,128,.12);color:var(--danger)}
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="sidebar">
+      <div class="brand" style="padding:8px 14px 20px"><span class="dot"></span> vanKonijnenburg</div>
+      <a href="/documents.html" class="active">Documentanalyse</a>
+      <a href="/excel.html" id="navExcel">Excel-templates</a>
+      <a href="/billing.html" id="navBilling" style="display:none">Abonnement</a>
+      <a href="/dashboard.html">Team</a>
+      <div style="flex:1"></div>
+      <a href="#" id="logoutLink">Log out</a>
+    </nav>
+    <script>
+      // Runs synchronously while the page parses, so the sidebar is correct at first paint. The
+      // authoritative role still comes from /api/me a moment later, but waiting for that meant
+      // the Abonnement tab popped into the nav after load (CEO) or flashed past before being
+      // hidden (employee) -- on every single tab switch. This is a RENDERING hint only: the
+      // server refuses billing actions from non-CEOs no matter what is stored here, so a stale
+      // or tampered value changes what you see, never what you can do.
+      try {
+        if (localStorage.getItem('vk_role') === 'ceo') {
+          document.getElementById('navBilling').style.display = '';
+        }
+      } catch (e) { /* private mode / storage disabled: fall back to the post-fetch reveal */ }
+    </script>
+
+    <main class="main">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <h1 style="font-size:22px">Documentanalyse</h1>
+        <button class="btn secondary" id="uploadToggle">+ Nieuw document</button>
+      </div>
+
+      <div class="card" id="uploadCard" style="display:none">
+        <label for="docTitle">Titel (optioneel)</label>
+        <input id="docTitle" placeholder="Bijv. Jaarrekening 2025 klant X">
+
+        <div class="input-tabs" style="margin-top:14px">
+          <button class="input-tab active" data-mode="text">Tekst plakken</button>
+          <button class="input-tab" data-mode="file">PDF / tekstbestand uploaden</button>
+        </div>
+        <div id="modeText">
+          <textarea id="docText" rows="8" placeholder="Plak hier de tekst van het document..."></textarea>
+        </div>
+        <div id="modeFile" style="display:none">
+          <div class="dropzone" id="fileDrop">
+            <div id="fileDropLabel">Sleep een bestand hierheen, of klik om te kiezen</div>
+            <input type="file" id="docFile" accept=".pdf,.txt,.md" style="display:none">
+          </div>
+        </div>
+        <div style="margin-top:14px">
+          <button class="btn" id="saveDocument">Document opslaan</button>
+        </div>
+        <div id="uploadMsg" class="msg"></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:280px 1fr;gap:20px;margin-top:20px">
+        <div class="card" style="padding:10px 8px">
+          <div id="docList"></div>
+        </div>
+
+        <div id="qaPanel" style="display:none">
+          <div class="card">
+            <h2 style="font-size:16px" id="qaTitle"></h2>
+            <p class="muted" style="font-size:13px;margin-top:0">Elk antwoord wordt onderbouwd met een letterlijk citaat uit het document, of gemarkeerd als niet gevonden — nooit gegokt.</p>
+
+            <div class="qa-thread" id="qaThread"></div>
+
+            <label for="qQuestion">Nieuwe vraag</label>
+            <textarea id="qQuestion" rows="2" placeholder="Bijv. Wat was de netto-omzet in 2025?"></textarea>
+            <button class="btn" id="askBtn" style="margin-top:10px">Vraag stellen</button>
+            <div id="askMsg" class="msg"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+let documents = [];
+let activeDocId = null;
+let inputMode = 'text';
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Er ging iets mis.');
+  return data;
+}
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+document.getElementById('uploadToggle').onclick = () => {
+  const c = document.getElementById('uploadCard');
+  c.style.display = c.style.display === 'none' ? 'block' : 'none';
+};
+
+document.querySelectorAll('.input-tab').forEach((tab) => tab.onclick = () => {
+  inputMode = tab.dataset.mode;
+  document.querySelectorAll('.input-tab').forEach((t) => t.classList.toggle('active', t === tab));
+  document.getElementById('modeText').style.display = inputMode === 'text' ? 'block' : 'none';
+  document.getElementById('modeFile').style.display = inputMode === 'file' ? 'block' : 'none';
+});
+
+const fileDrop = document.getElementById('fileDrop');
+const docFile = document.getElementById('docFile');
+fileDrop.onclick = () => docFile.click();
+['dragover', 'dragleave', 'drop'].forEach((evt) => fileDrop.addEventListener(evt, (e) => {
+  e.preventDefault();
+  fileDrop.classList.toggle('drag', evt === 'dragover');
+}));
+fileDrop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) { docFile.files = e.dataTransfer.files; showFileName(); } });
+docFile.addEventListener('change', showFileName);
+function showFileName() {
+  document.getElementById('fileDropLabel').textContent = docFile.files[0] ? docFile.files[0].name : 'Sleep een bestand hierheen, of klik om te kiezen';
+}
+
+async function loadDocuments() {
+  const { documents: list } = await api('/api/documents');
+  documents = list;
+  const el = document.getElementById('docList');
+  if (!list.length) { el.innerHTML = '<div class="muted" style="padding:14px;font-size:13.5px">Nog geen documenten.</div>'; return; }
+  el.innerHTML = '';
+  for (const d of list) {
+    const item = document.createElement('div');
+    item.className = 'doc-item' + (d.id === activeDocId ? ' active' : '');
+    item.innerHTML = `<div><div class="dname">${esc(d.filename)}</div><div class="dmeta">${d.query_count} vragen</div></div>
+      <span class="del" data-id="${d.id}">✕</span>`;
+    item.querySelector('.dname').parentElement.onclick = (e) => { if (!e.target.classList.contains('del')) selectDocument(d.id); };
+    item.querySelector('.del').onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm('Dit document verwijderen?')) return;
+      await api(`/api/documents/${d.id}`, { method: 'DELETE' });
+      if (activeDocId === d.id) { activeDocId = null; document.getElementById('qaPanel').style.display = 'none'; }
+      loadDocuments();
+    };
+    el.appendChild(item);
+  }
+}
+
+// The GPU behind the analysis scales to zero, and booting it takes minutes. Opening a document
+// or clicking into the question box is a reliable signal that a question is coming, so the boot
+// gets started there and runs while the user is still typing, instead of inside the wait that
+// follows the "Vraag" click. Fire-and-forget: the answer to this call is never needed, only its
+// side effect, and the server throttles repeats.
+function warmModel() {
+  fetch('/api/model/warm', { method: 'POST' }).catch(() => {});
+}
+
+function selectDocument(id) {
+  warmModel();
+  activeDocId = id;
+  const d = documents.find((x) => x.id === id);
+  document.getElementById('qaPanel').style.display = 'block';
+  document.getElementById('qaTitle').textContent = d.filename;
+  loadDocuments();
+  loadThread();
+}
+
+document.getElementById('saveDocument').onclick = async () => {
+  const msg = document.getElementById('uploadMsg');
+  const fd = new FormData();
+  const title = document.getElementById('docTitle').value.trim();
+  if (title) fd.append('title', title);
+  if (inputMode === 'text') {
+    const text = document.getElementById('docText').value.trim();
+    if (!text) { msg.textContent = 'Plak eerst tekst, of kies een bestand.'; msg.className = 'msg err'; return; }
+    fd.append('text', text);
+  } else {
+    if (!docFile.files[0]) { msg.textContent = 'Kies eerst een bestand.'; msg.className = 'msg err'; return; }
+    fd.append('file', docFile.files[0]);
+  }
+  try {
+    const { document: doc } = await api('/api/documents', { method: 'POST', body: fd });
+    msg.textContent = ''; msg.className = 'msg';
+    document.getElementById('uploadCard').style.display = 'none';
+    document.getElementById('docTitle').value = '';
+    document.getElementById('docText').value = '';
+    await loadDocuments();
+    selectDocument(doc.id);
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  }
+};
+
+function renderQaItem(q) {
+  const citations = q.citations_json || [];
+  const citesHtml = citations.length
+    ? `<div class="qa-cites">${citations.map((c) => c && c.quote
+        ? `<div class="qa-cite">"${esc(c.quote)}"</div>`
+        : `<div class="qa-cite unsupported">${esc(c && c.claim ? c.claim : '')} — niet onderbouwd</div>`).join('')}</div>`
+    : '';
+  const grounded = citations.some((c) => c && c.grounded);
+  let answerHtml;
+  // citations_json is NULL while the quotes are still being checked -- the answer is final and
+  // shown, but claiming "Niet onderbouwd" before the check has run would be wrong. An empty
+  // array is a different thing: checked, nothing found.
+  const checking = q.status === 'done' && q.citations_json == null;
+  if (q.status === 'pending') answerHtml = `<span class="spinner"></span> Bezig...`;
+  else if (q.status === 'failed') answerHtml = esc(q.error_message || 'Mislukt.');
+  else if (checking) answerHtml = `${esc(q.answer || '')}<span class="qa-badge">onderbouwing wordt gecontroleerd…</span>`;
+  else answerHtml = `${esc(q.answer || '')}${citations.length ? `<span class="qa-badge ${grounded ? 'grounded' : 'ungrounded'}">${grounded ? 'Onderbouwd' : 'Niet onderbouwd'}</span>` : ''}${q.error_message ? `<span class="qa-badge">${esc(q.error_message)}</span>` : ''}`;
+
+  return `<div class="qa-item">
+    <div class="qa-q">${esc(q.question)}</div>
+    <div class="qa-a ${q.status}">${answerHtml}</div>
+    ${q.status === 'done' && !checking ? citesHtml : ''}
+  </div>`;
+}
+
+async function loadThread() {
+  const { queries } = await api(`/api/documents/${activeDocId}/queries`);
+  document.getElementById('qaThread').innerHTML = queries.length
+    ? queries.map(renderQaItem).join('')
+    : '<div class="muted" style="font-size:13.5px">Nog geen vragen gesteld.</div>';
+  // Keep polling while anything is still running -- that now includes an answer whose quotes are
+  // still being checked, which is 'done' but not yet complete on screen.
+  const busy = queries.some((q) => q.status === 'pending' || (q.status === 'done' && q.citations_json == null));
+  if (busy) setTimeout(loadThread, 2000);
+}
+
+document.getElementById('qQuestion').addEventListener('focus', warmModel);
+
+document.getElementById('askBtn').onclick = async () => {
+  const msg = document.getElementById('askMsg');
+  const input = document.getElementById('qQuestion');
+  const question = input.value.trim();
+  if (!question) { msg.textContent = 'Voer eerst een vraag in.'; msg.className = 'msg err'; return; }
+  msg.textContent = ''; msg.className = 'msg';
+  try {
+    await api(`/api/documents/${activeDocId}/query`, { method: 'POST', body: JSON.stringify({ question }) });
+    input.value = '';
+    loadThread();
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  }
+};
+
+document.getElementById('logoutLink').onclick = async (e) => {
+  e.preventDefault();
+  try { localStorage.removeItem('vk_role'); } catch (e) {}
+  await api('/api/logout', { method: 'POST' }).catch(() => {});
+  window.location.href = '/login.html';
+};
+
+(async () => {
+  let me;
+  try { me = await api('/api/me'); } catch { window.location.href = '/login.html'; return; }
+  // Billing is CEO-only (the subscribe/cancel endpoints already refuse anyone else). The link
+  // starts hidden in the HTML and is revealed here rather than removed after the fact: removing
+  // it meant employees saw it flash past on every page load, before /api/me had answered.
+  // Cache the role for the synchronous nav hint at the top of the page, so the next navigation
+  // paints the correct sidebar immediately instead of correcting it after this fetch returns.
+  try { localStorage.setItem('vk_role', me.user.role); } catch (e) {}
+  if (me.user.role === 'ceo') document.getElementById('navBilling').style.display = '';
+  if (me.company.track === 'general') document.getElementById('navExcel').remove();
+  loadDocuments();
+})();
+</script>
+</body>
+</html>

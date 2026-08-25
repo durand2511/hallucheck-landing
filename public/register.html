@@ -17,7 +17,7 @@
   <div class="auth-shell">
     <div class="card">
       <h2>Create your account</h2>
-      <p class="muted" style="margin-top:0">Free to use — no credit card required.</p>
+      <p class="muted" style="margin-top:0" id="trackNote">Free to use — no credit card required.</p>
 
       <label for="companyName">Company name</label>
       <input id="companyName" placeholder="Acme Financial B.V.">
@@ -34,6 +34,11 @@
   </div>
 
 <script>
+const track = new URLSearchParams(window.location.search).get('track') === 'general' ? 'general' : 'accountancy';
+document.getElementById('trackNote').textContent = track === 'general'
+  ? 'Documentanalyse-pakket — free to use, no credit card required.'
+  : 'Accountancy-pakket (Excel-invultool + documentanalyse) — free to use, no credit card required.';
+
 document.getElementById('createBtn').addEventListener('click', async () => {
   const msg = document.getElementById('msg');
   msg.className = 'msg'; msg.textContent = '';
@@ -42,6 +47,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
     name: document.getElementById('name').value.trim(),
     email: document.getElementById('email').value.trim(),
     password: document.getElementById('password').value,
+    track,
   };
   if (!body.companyName || !body.email || !body.password) { msg.textContent = 'Please fill in all required fields.'; msg.className = 'msg err'; return; }
 
@@ -51,7 +57,7 @@ document.getElementById('createBtn').addEventListener('click', async () => {
     const r = await fetch('/api/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || 'Registration failed.');
-    window.location.href = '/dashboard.html';
+    window.location.href = track === 'general' ? '/documents.html' : '/excel.html';
   } catch (err) {
     msg.textContent = err.message; msg.className = 'msg err';
   } finally {

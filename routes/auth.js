@@ -1,6 +1,7 @@
 const express = require("express");
 const { pool } = require("../lib/db.js");
 const { hashPassword, verifyPassword, createSession, deleteSession } = require("../lib/auth.js");
+const { defaultPlanForTrack } = require("../lib/plans.js");
 
 const router = express.Router();
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
@@ -29,10 +30,13 @@ function clearLoginRateLimit(email) {
 // Company signup: creates the company + its CEO/owner account. Billing (Stripe subscription) is
 // wired up separately by the frontend right after this, via /api/billing/*.
 router.post("/api/register", async (req, res) => {
-  const { companyName, email, password, name } = req.body || {};
+  const { companyName, email, password, name, track: rawTrack } = req.body || {};
+  // Track is chosen on the landing page (Accountancy vs. Andere bedrijven) before the user ever
+  // sees a plan — it decides which feature set + plan grid they get, not the other way round.
+  const track = rawTrack === "general" ? "general" : "accountancy";
   // No plan choice at signup — you get access first, and pick/confirm a plan later when you
-  // actually activate billing from the dashboard. 'starter' is just the schema default until then.
-  const plan = "starter";
+  // actually activate billing from the dashboard. Default plan is just the schema default until then.
+  const plan = defaultPlanForTrack(track);
   if (!String(companyName || "").trim()) return res.status(400).json({ error: "Company name is required." });
   if (!isEmail(email)) return res.status(400).json({ error: "Please enter a valid email address." });
   if (!password || password.length < 8) return res.status(400).json({ error: "Password must be at least 8 characters." });
@@ -44,17 +48,22 @@ router.post("/api/register", async (req, res) => {
   try {
     await client.query("BEGIN");
     const { rows: [company] } = await client.query(
-      "INSERT INTO companies (name, plan) VALUES ($1, $2) RETURNING *",
-      [String(companyName).trim(), plan],
+      "INSERT INTO companies (name, track, plan) VALUES ($1, $2, $3) RETURNING *",
+      [String(companyName).trim(), track, plan],
     );
     const { rows: [user] } = await client.query(
       "INSERT INTO users (company_id, email, password_hash, name, role) VALUES ($1, $2, $3, $4, 'ceo') RETURNING *",
       [company.id, String(email).trim().toLowerCase(), hashPassword(password), String(name || "").trim()],
     );
     await client.query("COMMIT");
+    if (track === "accountancy") {
+      require("../lib/seed-templates.js").seedTemplatesForCompany(company.id, user.id).catch((err) =>
+        console.error("[register] template seeding failed:", err.message),
+      );
+    }
     const token = await createSession(user.id);
     res.cookie("session", token, COOKIE_OPTS);
-    res.status(201).json({ company: { id: company.id, name: company.name, plan: company.plan }, user: { id: user.id, email: user.email, role: user.role } });
+    res.status(201).json({ company: { id: company.id, name: company.name, track: company.track, plan: company.plan }, user: { id: user.id, email: user.email, role: user.role } });
   } catch (err) {
     await client.query("ROLLBACK");
     req.log?.error?.(err);
@@ -87,7 +96,7 @@ router.post("/api/logout", async (req, res) => {
 
 router.get("/api/me", async (req, res) => {
   if (!req.user) return res.status(401).json({ error: "Not logged in." });
-  const { rows: [company] } = await pool.query("SELECT id, name, plan, subscription_status FROM companies WHERE id = $1", [req.user.company_id]);
+  const { rows: [company] } = await pool.query("SELECT id, name, track, plan, subscription_status FROM companies WHERE id = $1", [req.user.company_id]);
   res.json({ user: { id: req.user.id, email: req.user.email, role: req.user.role, name: req.user.name }, company });
 });
 

@@ -1,8 +1,8 @@
 const express = require("express");
 const { pool } = require("../lib/db.js");
-const { requireCeo } = require("../lib/auth.js");
+const { requireCeo, requireAuth } = require("../lib/auth.js");
 const { stripe } = require("../lib/stripe.js");
-const { PLANS } = require("../lib/plans.js");
+const { plansForTrack } = require("../lib/plans.js");
 
 const router = express.Router();
 
@@ -29,11 +29,12 @@ router.post("/api/billing/subscribe", requireCeo, async (req, res) => {
   if (!paymentMethodId) return res.status(400).json({ error: "No payment method received." });
 
   let { rows: [company] } = await pool.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id]);
-  if (chosenPlanKey && PLANS[chosenPlanKey] && chosenPlanKey !== company.plan) {
+  const plans = plansForTrack(company.track);
+  if (chosenPlanKey && plans[chosenPlanKey] && chosenPlanKey !== company.plan) {
     await pool.query("UPDATE companies SET plan = $1 WHERE id = $2", [chosenPlanKey, company.id]);
     company = { ...company, plan: chosenPlanKey };
   }
-  const plan = PLANS[company.plan];
+  const plan = plans[company.plan];
   const customerId = await ensureStripeCustomer(company, req.user.email);
 
   await stripe().paymentMethods.attach(paymentMethodId, { customer: customerId });
@@ -59,6 +60,61 @@ router.post("/api/billing/subscribe", requireCeo, async (req, res) => {
   );
 
   res.json({ status: subscription.status });
+});
+
+router.post("/api/billing/cancel", requireCeo, async (req, res) => {
+  const { rows: [company] } = await pool.query("SELECT * FROM companies WHERE id = $1", [req.user.company_id]);
+  if (!company.stripe_subscription_id) return res.status(400).json({ error: "No active subscription to cancel." });
+
+  const subscription = await stripe().subscriptions.update(company.stripe_subscription_id, { cancel_at_period_end: true });
+  await pool.query("UPDATE companies SET subscription_status = $1 WHERE id = $2", [subscription.status, company.id]);
+  res.json({ status: subscription.status, cancelAtPeriodEnd: subscription.cancel_at_period_end });
+});
+
+// This month's usage, broken down by feature so the CEO can see exactly what they've used (not
+// just a combined total) against the plan's included amount before an overage charge applies.
+// Accountancy track's included-units cap covers both Excel-fills and document analyses combined
+// (one bundled unit type per lib/plans.js); general track only has document analyses.
+router.get("/api/billing/usage", requireAuth, async (req, res) => {
+  const { rows: [company] } = await pool.query("SELECT track, plan FROM companies WHERE id = $1", [req.user.company_id]);
+  // Only analyses that actually delivered something count against the allowance:
+  //   * status <> 'done' means the customer got no answer -- a failed run is our problem, not
+  //     billable usage. Three of this month's rows failed on infrastructure errors alone.
+  //   * reused_from_query_id marks a repeat of a question this document already answered, served
+  //     straight from the stored answer without touching the model (routes/documents.js). It
+  //     costs us no analysis, so charging for it would be charging for nothing.
+  const { rows: [{ count: docCount }] } = await pool.query(
+    `SELECT COUNT(*) FROM document_queries dq
+     JOIN documents d ON d.id = dq.document_id
+     WHERE d.company_id = $1 AND dq.created_at >= date_trunc('month', now())
+       AND dq.status = 'done' AND dq.reused_from_query_id IS NULL`,
+    [req.user.company_id],
+  );
+  let fillCount = 0;
+  if (company.track === "accountancy") {
+    const { rows: [{ count }] } = await pool.query(
+      // Same rule as document analyses: a fill that errored out produced no filled sheet, so it
+      // is not billable usage.
+      `SELECT COUNT(*) FROM excel_fills ef
+       JOIN excel_templates et ON et.id = ef.template_id
+       WHERE et.company_id = $1 AND ef.created_at >= date_trunc('month', now())
+         AND ef.result_json->>'status' = 'done'`,
+      [req.user.company_id],
+    );
+    fillCount = Number(count);
+  }
+  // The allowance travels with the usage instead of being scraped out of the plan's marketing
+  // copy. billing.html used to find the cap by regexing the first number out of whichever feature
+  // line contained "inbegrepen" -- which silently produced the wrong cap the moment a plan's
+  // wording changed, and no cap at all for plans that had no number in that line.
+  const plan = plansForTrack(company.track)[company.plan];
+  res.json({
+    fillsThisMonth: fillCount + Number(docCount),
+    excelFillsThisMonth: fillCount,
+    documentAnalysesThisMonth: Number(docCount),
+    includedUnits: plan ? plan.includedUnits : null,
+    extraUnitEuroCents: plan ? plan.extraUnitEuroCents : null,
+  });
 });
 
 router.post("/api/billing/webhook", express.raw({ type: "application/json" }), async (req, res) => {

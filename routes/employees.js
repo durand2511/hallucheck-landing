@@ -1,11 +1,15 @@
 const express = require("express");
 const { pool } = require("../lib/db.js");
-const { hashPassword, requireCeo } = require("../lib/auth.js");
+const { hashPassword, requireCeo, requireAuth } = require("../lib/auth.js");
 
 const router = express.Router();
 const isEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 
-router.get("/api/employees", requireCeo, async (req, res) => {
+// Readable by anyone in the company, not just the CEO. It was requireCeo, so an employee opening
+// the Team page got a 403 that the frontend swallowed -- the page rendered, empty, as though the
+// company had no members at all. Seeing who your colleagues are is not privileged information;
+// ADDING and REMOVING them is, and those two routes below stay CEO-only.
+router.get("/api/employees", requireAuth, async (req, res) => {
   const { rows } = await pool.query(
     "SELECT id, email, name, role, created_at FROM users WHERE company_id = $1 ORDER BY created_at",
     [req.user.company_id],

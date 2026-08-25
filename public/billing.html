@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Abonnement — vanKonijnenburg</title>
+<link rel="stylesheet" href="/app.css">
+<script src="https://js.stripe.com/v3/"></script>
+<style>
+  #cardElement{padding:12px 14px;border-radius:10px;border:1px solid var(--border);background:var(--bg2)}
+  .plan-card.picked{border-color:var(--accent2);box-shadow:0 0 0 1px var(--accent2)}
+  .plan-card ul{margin:10px 0 0;padding-left:16px;font-size:12.5px;color:var(--muted)}
+  .plan-card li{margin-bottom:3px}
+  .status-row{display:flex;align-items:center;justify-content:space-between}
+  .usage-line{display:flex;justify-content:space-between;font-size:15px;margin-bottom:6px}
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="sidebar">
+      <div class="brand" style="padding:8px 14px 20px"><span class="dot"></span> vanKonijnenburg</div>
+      <a href="/documents.html">Documentanalyse</a>
+      <a href="/excel.html" id="navExcel">Excel-templates</a>
+      <a href="/billing.html" id="navBilling" class="active" style="display:none">Abonnement</a>
+      <a href="/dashboard.html">Team</a>
+      <div style="flex:1"></div>
+      <a href="#" id="logoutLink">Log out</a>
+    </nav>
+    <script>
+      // Runs synchronously while the page parses, so the sidebar is correct at first paint. The
+      // authoritative role still comes from /api/me a moment later, but waiting for that meant
+      // the Abonnement tab popped into the nav after load (CEO) or flashed past before being
+      // hidden (employee) -- on every single tab switch. This is a RENDERING hint only: the
+      // server refuses billing actions from non-CEOs no matter what is stored here, so a stale
+      // or tampered value changes what you see, never what you can do.
+      try {
+        if (localStorage.getItem('vk_role') === 'ceo') {
+          try { localStorage.setItem('vk_role', me.user.role); } catch (e) {}
+    document.getElementById('navBilling').style.display = '';
+        }
+      } catch (e) { /* private mode / storage disabled: fall back to the post-fetch reveal */ }
+    </script>
+
+    <main class="main">
+      <div class="status-row" style="margin-bottom:18px">
+        <h1 style="font-size:22px;margin:0">Abonnement</h1>
+        <span class="badge" id="statusBadge"></span>
+      </div>
+
+      <div class="card">
+        <label>Kies je plan</label>
+        <div class="plan-grid" id="planGrid"></div>
+      </div>
+
+      <div class="card" id="paymentCard">
+        <h2 style="font-size:15px;font-weight:700;margin:0 0 14px">Factuuradres</h2>
+        <div id="addressElement"></div>
+        <label style="margin-top:18px">Kaartgegevens</label>
+        <div id="cardElement"></div>
+        <div id="cardErrors" class="msg err" style="margin-top:8px"></div>
+        <button class="btn" id="payBtn" style="margin-top:16px">Abonnement starten</button>
+        <div id="payMsg" class="msg"></div>
+        <p class="muted" style="font-size:12.5px;margin-top:14px">Betalingen worden rechtstreeks door Stripe verwerkt — je kaartgegevens komen nooit op onze eigen servers terecht.</p>
+      </div>
+
+      <div class="card" id="usageCard">
+        <label style="margin:0 0 10px">Gebruik deze maand</label>
+        <div class="usage-line" id="usageLineExcel" style="display:none"><span>Excel-invullingen</span><span id="usageCountExcel" class="num">—</span></div>
+        <div class="usage-line"><span>Documentanalyses</span><span id="usageCountDocs" class="num">—</span></div>
+        <!-- The bar shows the COMBINED allowance, but sitting directly under the last breakdown
+             row it read as that row's own progress. This total line, separated by a rule, gives
+             the bar something to belong to. -->
+        <div class="usage-line" id="usageLineTotal" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,.10);font-weight:600">
+          <span>Totaal</span><span id="usageCountTotal" class="num">—</span>
+        </div>
+        <div class="usage-bar" style="margin-top:6px"><div class="fill" id="usageFill" style="width:0%"></div></div>
+        <div class="muted" style="font-size:12.5px;margin-top:8px" id="usageNote"></div>
+      </div>
+
+      <div class="card" id="cancelCard" style="display:none">
+        <label style="margin:0 0 8px">Abonnement beheren</label>
+        <p class="muted" style="font-size:12.5px;margin:0 0 12px">Je abonnement loopt tot het einde van de huidige periode als je opzegt.</p>
+        <button class="btn danger" id="cancelBtn">Opzeggen</button>
+        <div id="cancelMsg" class="msg"></div>
+      </div>
+    </main>
+  </div>
+
+<script>
+let stripe, elements, card, addressElement, selectedPlan, PLANS;
+// Feature text mirrors lib/plans.js -- keep the numbers in step with it. The wording is
+// deliberate: "onbeperkt documenten" used to sit next to "Documentanalyse", which read as
+// unlimited ANALYSES when only uploading is unlimited. Every question asked counts against the
+// monthly allowance, so that is now spelled out on its own line rather than left to inference.
+const UNLIMITED_UPLOADS = 'Onbeperkt documenten uploaden, analyses met citaat-bewijs';
+const COUNTS_AS_ONE = 'Elke gestelde vraag telt als één analyse';
+const EXCEL_TOOL = 'Excel-invultool: winst-en-verlies, BTW-aangifte, eigen templates';
+const PLANS_BY_TRACK = {
+  accountancy: {
+    starter: { label: 'Starter', price: '99', audience: 'Kleine kantoren (1-3 fte)', features: [
+      EXCEL_TOOL, UNLIMITED_UPLOADS,
+      '60 invullingen + analyses samen/mnd inbegrepen', COUNTS_AS_ONE, 'Daarna €2,00 per extra',
+    ] },
+    professional: { label: 'Professional', price: '299', audience: 'Middelgrote kantoren (4-15 fte)', features: [
+      EXCEL_TOOL, UNLIMITED_UPLOADS,
+      '250 invullingen + analyses samen/mnd inbegrepen', COUNTS_AS_ONE, 'Daarna €1,50 per extra',
+    ] },
+    enterprise: { label: 'Enterprise', price: '749', audience: 'Grote kantoren / meerdere vestigingen', features: [
+      EXCEL_TOOL, UNLIMITED_UPLOADS,
+      '700 invullingen + analyses samen/mnd inbegrepen', COUNTS_AS_ONE, 'Daarna €1,25 per extra',
+    ] },
+  },
+  general: {
+    basic: { label: 'Basic', price: '39', audience: 'Kleine teams', features: [
+      UNLIMITED_UPLOADS, '40 analyses/mnd inbegrepen', COUNTS_AS_ONE, 'Daarna €1,25 per extra analyse',
+    ] },
+    pro: { label: 'Pro', price: '99', audience: 'Groeiende bedrijven', features: [
+      UNLIMITED_UPLOADS, '120 analyses/mnd inbegrepen', COUNTS_AS_ONE, 'Daarna €1,00 per extra analyse',
+    ] },
+    business: { label: 'Business', price: '249', audience: 'Grote organisaties', features: [
+      UNLIMITED_UPLOADS, '300 analyses/mnd inbegrepen', COUNTS_AS_ONE, 'Daarna €0,90 per extra analyse',
+    ] },
+  },
+};
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Er ging iets mis.');
+  return data;
+}
+
+function renderPlans(currentPlan) {
+  selectedPlan = currentPlan || 'starter';
+  const grid = document.getElementById('planGrid');
+  grid.innerHTML = '';
+  for (const [key, p] of Object.entries(PLANS)) {
+    const el = document.createElement('div');
+    el.className = 'plan-card' + (key === selectedPlan ? ' picked' : '');
+    el.innerHTML = `<div class="plabel">${p.label}</div><div class="pprice">€${p.price} <small>/ maand</small></div><div class="pdesc">${p.audience}</div>
+      <ul>${p.features.map((f) => `<li>${f}</li>`).join('')}</ul>`;
+    el.onclick = () => { selectedPlan = key; document.querySelectorAll('.plan-card').forEach((e) => e.classList.remove('picked')); el.classList.add('picked'); };
+    grid.appendChild(el);
+  }
+}
+
+function statusBadge(status) {
+  const badge = document.getElementById('statusBadge');
+  const map = { active: ['ok', 'Actief'], trialing: ['ok', 'Proefperiode'], past_due: ['warn', 'Betaling mislukt'], canceled: ['', 'Opgezegd'], incomplete: ['warn', 'Nog niet actief'] };
+  const [cls, label] = map[status] || ['', status || 'Geen abonnement'];
+  badge.className = 'badge ' + cls;
+  badge.textContent = label;
+}
+
+document.getElementById('payBtn').onclick = async () => {
+  const msg = document.getElementById('payMsg');
+  const errEl = document.getElementById('cardErrors');
+  errEl.textContent = '';
+  msg.innerHTML = '<span class="spinner"></span> Bezig...'; msg.className = 'msg';
+
+  const addressData = await addressElement.getValue();
+  if (!addressData.complete) { errEl.textContent = 'Vul eerst een volledig factuuradres in.'; msg.textContent = ''; return; }
+  const { name, address } = addressData.value;
+
+  try {
+    const { clientSecret } = await api('/api/billing/setup-intent', { method: 'POST' });
+    const result = await stripe.confirmCardSetup(clientSecret, { payment_method: { card, billing_details: { name, address } } });
+    if (result.error) { errEl.textContent = result.error.message; msg.textContent = ''; return; }
+
+    const sub = await api('/api/billing/subscribe', {
+      method: 'POST',
+      body: JSON.stringify({ paymentMethodId: result.setupIntent.payment_method, plan: selectedPlan }),
+    });
+    msg.textContent = 'Abonnement actief.'; msg.className = 'msg ok';
+    statusBadge(sub.status);
+    document.getElementById('cancelCard').style.display = 'block';
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  }
+};
+
+document.getElementById('cancelBtn').onclick = async () => {
+  if (!confirm('Weet je zeker dat je wilt opzeggen?')) return;
+  const msg = document.getElementById('cancelMsg');
+  try {
+    const r = await api('/api/billing/cancel', { method: 'POST' });
+    msg.textContent = 'Opgezegd — blijft actief tot het einde van de huidige periode.'; msg.className = 'msg ok';
+    statusBadge(r.status);
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  }
+};
+
+document.getElementById('logoutLink').onclick = async (e) => {
+  e.preventDefault();
+  try { localStorage.removeItem('vk_role'); } catch (e) {}
+  await api('/api/logout', { method: 'POST' }).catch(() => {});
+  window.location.href = '/login.html';
+};
+
+(async () => {
+  let me, company;
+  try {
+    me = await api('/api/me');
+    // Guarding the page as well as the link: hiding a nav item is a convenience, not access
+    // control, and typing the URL should not land an employee on a subscription form whose
+    // buttons will all be refused by the server anyway.
+    if (me.user.role !== 'ceo') { window.location.href = '/documents.html'; return; }
+    document.getElementById('navBilling').style.display = '';
+    company = me.company;
+  } catch { window.location.href = '/login.html'; return; }
+
+  PLANS = PLANS_BY_TRACK[company.track] || PLANS_BY_TRACK.accountancy;
+  if (company.track === 'general') document.getElementById('navExcel').remove();
+  statusBadge(company.subscription_status);
+  renderPlans(company.plan);
+  if (['active', 'trialing', 'past_due'].includes(company.subscription_status)) {
+    document.getElementById('cancelCard').style.display = 'block';
+  }
+
+  api('/api/billing/usage').then((u) => {
+    // The cap comes from the API, which reads lib/plans.js directly. It used to be regexed out of
+    // whichever feature line mentioned "inbegrepen", so a reworded feature list silently changed
+    // the number the progress bar was measured against.
+    const cap = Number.isFinite(u.includedUnits) ? u.includedUnits : null;
+
+    if (company.track === 'accountancy') {
+      // Only this track bundles two feature types into one allowance, so only here is a separate
+      // total worth showing -- on the general track the single line already IS the total.
+      document.getElementById('usageLineExcel').style.display = 'flex';
+      document.getElementById('usageCountExcel').textContent = u.excelFillsThisMonth;
+      document.getElementById('usageLineTotal').style.display = 'flex';
+      document.getElementById('usageCountTotal').textContent = cap ? `${u.fillsThisMonth} / ${cap}` : u.fillsThisMonth;
+    }
+    document.getElementById('usageCountDocs').textContent = u.documentAnalysesThisMonth;
+    document.getElementById('usageFill').style.width = cap ? Math.min(100, (u.fillsThisMonth / cap) * 100) + '%' : '100%';
+    document.getElementById('usageNote').textContent = cap
+      ? `${u.fillsThisMonth} / ${cap} inbegrepen deze maand${u.fillsThisMonth > cap ? ' — extra wordt bijgerekend volgens je plan.' : '.'}`
+      : 'Onbeperkt inbegrepen op dit plan.';
+  }).catch(() => {});
+
+  const { publishableKey } = await api('/api/billing/setup-intent', { method: 'POST' }).catch(() => ({}));
+  if (!publishableKey) {
+    document.getElementById('payMsg').textContent = 'Betalen is nog niet beschikbaar (geen Stripe-sleutel geconfigureerd).';
+    document.getElementById('payMsg').className = 'msg err';
+    document.getElementById('payBtn').disabled = true;
+    return;
+  }
+  stripe = Stripe(publishableKey);
+  elements = stripe.elements({
+    appearance: {
+      theme: 'night',
+      variables: {
+        colorBackground: '#111319', colorText: '#eef0f5', colorTextPlaceholder: '#9aa0b4',
+        colorPrimary: '#7c9bff', colorDanger: '#ff8080', borderRadius: '10px',
+        colorTextSecondary: '#9aa0b4', colorIconTab: '#9aa0b4',
+      },
+      rules: { '.Input': { border: '1px solid #232634' }, '.Label': { color: '#9aa0b4', fontSize: '13px' } },
+    },
+  });
+  addressElement = elements.create('address', { mode: 'billing', defaultValues: { address: { country: 'NL' } } });
+  addressElement.mount('#addressElement');
+
+  card = elements.create('card', { style: { base: { color: '#eef0f5', fontSize: '15px', '::placeholder': { color: '#9aa0b4' } } } });
+  card.mount('#cardElement');
+  card.on('change', (e) => { document.getElementById('cardErrors').textContent = e.error ? e.error.message : ''; });
+})();
+</script>
+</body>
+</html>

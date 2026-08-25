@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Excel-templates — vanKonijnenburg</title>
+<link rel="stylesheet" href="/app.css">
+<style>
+  .field-row{display:grid;grid-template-columns:1fr 90px auto;gap:8px;align-items:center;margin-bottom:8px}
+  .field-row input{margin:0}
+  .template-item{display:flex;align-items:center;justify-content:space-between;padding:14px;border-radius:10px;cursor:pointer;transition:.12s;border:1px solid transparent}
+  .template-item:hover{background:var(--card2)}
+  .template-item.active{background:var(--card2);border-color:var(--accent2)}
+  .template-item .tname{font-weight:600;font-size:14.5px}
+  .template-item .tmeta{font-size:12px;color:var(--muted);margin-top:2px}
+  .star{cursor:pointer;font-size:16px;color:var(--muted);padding:4px}
+  .star.on{color:var(--warn)}
+
+  .input-tabs{display:flex;gap:8px;margin-bottom:14px}
+  .input-tab{padding:8px 16px;border-radius:999px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:13.5px;cursor:pointer}
+  .input-tab.active{background:var(--card2);color:var(--text);border-color:var(--accent2)}
+
+  /* stap-voor-stap review ("slideshow") */
+  .review-step{text-align:center;padding:8px 0}
+  .review-progress{font-size:12px;color:var(--muted);margin-bottom:18px}
+  .review-progress-bar{height:4px;border-radius:999px;background:var(--bg2);overflow:hidden;margin-top:6px}
+  .review-progress-bar .fill{height:100%;background:linear-gradient(135deg,var(--accent),var(--accent2))}
+  .review-field{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .review-cell{font-size:11px;color:var(--muted);font-family:monospace;margin-top:2px}
+  .review-value{font-size:28px;font-weight:700;margin:18px 0 10px}
+  .review-value.empty{color:var(--danger);font-size:16px;font-weight:500}
+  .review-badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:600;margin-bottom:6px}
+  .review-badge.grounded{background:rgba(110,231,199,.12);color:var(--accent)}
+  .review-badge.ungrounded{background:rgba(255,128,128,.12);color:var(--danger)}
+  .review-cite{max-width:440px;margin:14px auto 0;padding:12px 16px;border-radius:10px;background:var(--bg2);font-size:13px;color:var(--muted);font-style:italic;text-align:left}
+  .review-nav{display:flex;justify-content:center;gap:10px;margin-top:24px}
+  .review-dots{display:flex;justify-content:center;gap:6px;margin-top:16px}
+  .review-dot{width:7px;height:7px;border-radius:50%;background:var(--border)}
+  .review-dot.grounded{background:var(--accent)}
+  .review-dot.ungrounded{background:var(--danger)}
+  .review-dot.current{transform:scale(1.4)}
+
+  /* echte voor/na Excel-grid */
+  .review-body{display:flex;flex-direction:column;gap:20px;text-align:left;max-width:640px;margin:0 auto}
+  .grid-pair{display:grid;grid-template-columns:1fr;gap:16px}
+  .grid-block h5{margin:0 0 8px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+  .xl-table-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:10px}
+  .xl-table{border-collapse:collapse;font-size:11px;font-family:monospace;width:100%}
+  .xl-table td{border:1px solid var(--border);padding:5px 8px;white-space:nowrap;color:var(--muted)}
+  .xl-table td.xl-highlight{background:rgba(124,155,255,.18);color:var(--text);font-weight:700;box-shadow:inset 0 0 0 2px var(--accent2)}
+</style>
+</head>
+<body>
+  <div class="app-shell">
+    <nav class="sidebar">
+      <div class="brand" style="padding:8px 14px 20px"><span class="dot"></span> vanKonijnenburg</div>
+      <a href="/documents.html">Documentanalyse</a>
+      <a href="/excel.html" class="active">Excel-templates</a>
+      <a href="/billing.html" id="navBilling" style="display:none">Abonnement</a>
+      <a href="/dashboard.html">Team</a>
+      <div style="flex:1"></div>
+      <a href="#" id="logoutLink">Log out</a>
+    </nav>
+    <script>
+      // Runs synchronously while the page parses, so the sidebar is correct at first paint. The
+      // authoritative role still comes from /api/me a moment later, but waiting for that meant
+      // the Abonnement tab popped into the nav after load (CEO) or flashed past before being
+      // hidden (employee) -- on every single tab switch. This is a RENDERING hint only: the
+      // server refuses billing actions from non-CEOs no matter what is stored here, so a stale
+      // or tampered value changes what you see, never what you can do.
+      try {
+        if (localStorage.getItem('vk_role') === 'ceo') {
+          document.getElementById('navBilling').style.display = '';
+        }
+      } catch (e) { /* private mode / storage disabled: fall back to the post-fetch reveal */ }
+    </script>
+
+    <main class="main">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+        <h1 style="font-size:22px">Excel-templates</h1>
+        <button class="btn secondary" id="uploadToggle">+ Eigen template uploaden</button>
+      </div>
+
+      <div class="card" id="uploadCard" style="display:none">
+        <label for="tplName">Naam</label>
+        <input id="tplName" placeholder="Bijv. Loonkostenoverzicht">
+        <label for="tplFile">Excel-bestand (.xlsx)</label>
+        <input id="tplFile" type="file" accept=".xlsx">
+        <label>Velden — welk veld hoort bij welke cel? (de AI vult ALLEEN deze cellen, gokt nooit zelf een locatie)</label>
+        <div id="fieldRows"></div>
+        <button class="btn secondary" id="addFieldRow" style="margin-top:4px">+ Veld toevoegen</button>
+        <div style="margin-top:14px">
+          <button class="btn" id="saveTemplate">Template opslaan</button>
+        </div>
+        <div id="uploadMsg" class="msg"></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:280px 1fr;gap:20px;margin-top:20px" id="mainGrid">
+        <div class="card" style="padding:10px 8px">
+          <div id="templateList"></div>
+        </div>
+
+        <div id="fillPanel" style="display:none">
+          <div class="card">
+            <h2 style="font-size:16px" id="fillTitle"></h2>
+
+            <div class="input-tabs">
+              <button class="input-tab active" data-mode="text">Tekst plakken</button>
+              <button class="input-tab" data-mode="file">PDF / tekstbestand uploaden</button>
+            </div>
+
+            <div id="modeText">
+              <label for="inputText">Cijfers / gegevens (gewoon lopende tekst)</label>
+              <textarea id="inputText" rows="6" placeholder="Bijv. Netto-omzet januari was 42.500 euro, inkoopwaarde 18.000, personeelskosten 12.000..."></textarea>
+            </div>
+            <div id="modeFile" style="display:none">
+              <label for="inputFile">PDF of tekstbestand</label>
+              <div class="dropzone" id="fileDrop">
+                <div id="fileDropLabel">Sleep een bestand hierheen, of klik om te kiezen</div>
+                <input type="file" id="inputFile" accept=".pdf,.txt,.md" style="display:none">
+              </div>
+            </div>
+
+            <button class="btn" id="fillBtn" style="margin-top:16px">Vul template in</button>
+            <div id="fillMsg" class="msg"></div>
+          </div>
+
+          <div class="card" id="reviewCard" style="display:none">
+            <h2 style="font-size:16px;margin-bottom:4px">Controleer voordat je downloadt</h2>
+            <p class="muted" style="font-size:13px;margin-top:0">Loop veld voor veld door. Groen = gevonden met bewijs. Rood = niet gevonden, blijft leeg.</p>
+
+            <div class="review-progress" id="reviewProgress"></div>
+            <div class="review-step" id="reviewStep"></div>
+            <div class="review-nav">
+              <button class="btn secondary" id="reviewPrev">← Vorige</button>
+              <button class="btn secondary" id="reviewNext">Volgende →</button>
+            </div>
+            <div class="review-dots" id="reviewDots"></div>
+
+            <div style="text-align:center;margin-top:24px">
+              <button class="btn" id="downloadBtn">Download Excel-bestand</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+let templates = [];
+let activeTemplateId = null;
+let activeFillId = null;
+let reviewFields = [];
+let reviewGridBefore = [];
+let reviewGridAfter = [];
+let reviewIdx = 0;
+let inputMode = 'text';
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: opts.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }, ...opts });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Er ging iets mis.');
+  return data;
+}
+
+// --- Template upload ---
+function addFieldRow(field = '', cell = '') {
+  const row = document.createElement('div');
+  row.className = 'field-row';
+  row.innerHTML = `<input placeholder="veldnaam (bijv. netto_omzet)" class="fname" value="${field}">
+    <input placeholder="cel (bijv. B5)" class="fcell" value="${cell}">
+    <button class="btn secondary" onclick="this.parentElement.remove()" type="button">✕</button>`;
+  document.getElementById('fieldRows').appendChild(row);
+}
+document.getElementById('addFieldRow').onclick = () => addFieldRow();
+document.getElementById('uploadToggle').onclick = () => {
+  const c = document.getElementById('uploadCard');
+  c.style.display = c.style.display === 'none' ? 'block' : 'none';
+  if (c.style.display === 'block' && !document.getElementById('fieldRows').children.length) addFieldRow();
+};
+
+async function loadTemplates() {
+  const { templates: list } = await api('/api/excel-templates');
+  templates = list;
+  const el = document.getElementById('templateList');
+  if (!list.length) { el.innerHTML = '<div class="muted" style="padding:14px;font-size:13.5px">Nog geen templates.</div>'; return; }
+  el.innerHTML = '';
+  for (const t of list) {
+    const item = document.createElement('div');
+    item.className = 'template-item' + (t.id === activeTemplateId ? ' active' : '');
+    item.innerHTML = `<div><div class="tname">${t.name}</div><div class="tmeta">${t.field_map_json.length} velden</div></div>
+      <span class="star ${t.is_favorite ? 'on' : ''}" data-id="${t.id}">★</span>`;
+    item.querySelector('.tname').parentElement.onclick = (e) => { if (!e.target.classList.contains('star')) selectTemplate(t.id); };
+    item.querySelector('.star').onclick = async (e) => {
+      e.stopPropagation();
+      await api(`/api/excel-templates/${t.id}/favorite`, { method: 'PATCH' });
+      loadTemplates();
+    };
+    el.appendChild(item);
+  }
+}
+
+function selectTemplate(id) {
+  activeTemplateId = id;
+  const t = templates.find((x) => x.id === id);
+  document.getElementById('fillPanel').style.display = 'block';
+  document.getElementById('fillTitle').textContent = t.name;
+  document.getElementById('reviewCard').style.display = 'none';
+  document.getElementById('inputText').value = '';
+  loadTemplates();
+}
+
+document.getElementById('saveTemplate').onclick = async () => {
+  const msg = document.getElementById('uploadMsg');
+  const name = document.getElementById('tplName').value.trim();
+  const file = document.getElementById('tplFile').files[0];
+  const fieldMap = [...document.querySelectorAll('.field-row')].map((row) => ({
+    field: row.querySelector('.fname').value.trim(),
+    cell: row.querySelector('.fcell').value.trim(),
+  })).filter((f) => f.field && f.cell);
+
+  if (!name || !file || !fieldMap.length) { msg.textContent = 'Vul een naam, kies een bestand, en minstens 1 veld.'; msg.className = 'msg err'; return; }
+
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('name', name);
+  fd.append('field_map', JSON.stringify(fieldMap));
+  try {
+    await api('/api/excel-templates', { method: 'POST', body: fd });
+    msg.textContent = 'Template opgeslagen.'; msg.className = 'msg ok';
+    document.getElementById('uploadCard').style.display = 'none';
+    document.getElementById('tplName').value = '';
+    document.getElementById('fieldRows').innerHTML = '';
+    loadTemplates();
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  }
+};
+
+// --- Input mode toggle (tekst plakken vs. bestand uploaden) ---
+document.querySelectorAll('.input-tab').forEach((tab) => tab.onclick = () => {
+  inputMode = tab.dataset.mode;
+  document.querySelectorAll('.input-tab').forEach((t) => t.classList.toggle('active', t === tab));
+  document.getElementById('modeText').style.display = inputMode === 'text' ? 'block' : 'none';
+  document.getElementById('modeFile').style.display = inputMode === 'file' ? 'block' : 'none';
+});
+
+const fileDrop = document.getElementById('fileDrop');
+const inputFile = document.getElementById('inputFile');
+fileDrop.onclick = () => inputFile.click();
+['dragover', 'dragleave', 'drop'].forEach((evt) => fileDrop.addEventListener(evt, (e) => {
+  e.preventDefault();
+  fileDrop.classList.toggle('drag', evt === 'dragover');
+}));
+fileDrop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) { inputFile.files = e.dataTransfer.files; showFileName(); } });
+inputFile.addEventListener('change', showFileName);
+function showFileName() {
+  document.getElementById('fileDropLabel').textContent = inputFile.files[0] ? inputFile.files[0].name : 'Sleep een bestand hierheen, of klik om te kiezen';
+}
+
+// --- Vullen ---
+// Same reason as documents.html: the analysis GPU scales to zero, so start booting it the moment
+// someone starts entering figures rather than after they hit "Vul template in".
+function warmModel() {
+  fetch('/api/model/warm', { method: 'POST' }).catch(() => {});
+}
+document.getElementById('inputText').addEventListener('focus', warmModel);
+document.getElementById('inputFile').addEventListener('change', warmModel);
+
+document.getElementById('fillBtn').onclick = async () => {
+  const msg = document.getElementById('fillMsg');
+  const fd = new FormData();
+  if (inputMode === 'text') {
+    const inputText = document.getElementById('inputText').value.trim();
+    if (!inputText) { msg.textContent = 'Voer eerst je cijfers/gegevens in.'; msg.className = 'msg err'; return; }
+    fd.append('input_text', inputText);
+  } else {
+    if (!inputFile.files[0]) { msg.textContent = 'Kies eerst een bestand.'; msg.className = 'msg err'; return; }
+    fd.append('file', inputFile.files[0]);
+  }
+
+  msg.innerHTML = '<span class="spinner"></span> Bezig met invullen...'; msg.className = 'msg';
+  document.getElementById('reviewCard').style.display = 'none';
+  try {
+    const { fill_id } = await api(`/api/excel-templates/${activeTemplateId}/fill`, { method: 'POST', body: fd });
+    activeFillId = fill_id;
+    pollFill(fill_id);
+  } catch (err) {
+    msg.textContent = err.message; msg.className = 'msg err';
+  }
+};
+
+async function pollFill(id) {
+  const msg = document.getElementById('fillMsg');
+  const { fill } = await api(`/api/excel-fills/${id}`);
+  const status = fill.result_json?.status;
+  if (status === 'pending') { setTimeout(() => pollFill(id), 2000); return; }
+  if (status === 'failed') { msg.textContent = 'Mislukt: ' + fill.result_json.error; msg.className = 'msg err'; return; }
+
+  msg.textContent = '';
+  reviewFields = fill.result_json.fields;
+  reviewGridBefore = fill.result_json.gridBefore || [];
+  reviewGridAfter = fill.result_json.gridAfter || [];
+  reviewIdx = 0;
+  document.getElementById('reviewCard').style.display = 'block';
+  renderReviewStep();
+}
+
+// "B5" -> {row: 5, col: 2} (1-indexed, matching the server-side grid)
+function parseCellRef(ref) {
+  const m = String(ref).match(/^([A-Za-z]+)(\d+)$/);
+  if (!m) return null;
+  const [, letters, rowStr] = m;
+  let col = 0;
+  for (const ch of letters.toUpperCase()) col = col * 26 + (ch.charCodeAt(0) - 64);
+  return { row: Number(rowStr), col };
+}
+
+// Toont alleen een venster van rijen rond het huidige veld (i.p.v. het hele blad) -- zo blijft
+// de tabel altijd compact en past 'm gewoon op de pagina, geen eigen scrollbalk nodig binnenin.
+function renderGrid(grid, highlightRef) {
+  const h = parseCellRef(highlightRef);
+  const centerRow = h ? h.row - 1 : 0;
+  const windowSize = 4;
+  const startRow = Math.max(0, centerRow - windowSize);
+  const endRow = Math.min(grid.length - 1, centerRow + windowSize);
+
+  const rowsHtml = [];
+  if (startRow > 0) rowsHtml.push(`<tr><td colspan="99" style="text-align:center;color:var(--border)">⋮</td></tr>`);
+  for (let ri = startRow; ri <= endRow; ri++) {
+    const row = grid[ri] || [];
+    const cells = row.map((val, ci) => {
+      const isHi = h && h.row === ri + 1 && h.col === ci + 1;
+      return `<td class="${isHi ? 'xl-highlight' : ''}">${(val || '').toString().replace(/[&<>]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</td>`;
+    }).join('');
+    rowsHtml.push(`<tr>${cells}</tr>`);
+  }
+  if (endRow < grid.length - 1) rowsHtml.push(`<tr><td colspan="99" style="text-align:center;color:var(--border)">⋮</td></tr>`);
+
+  return `<div class="xl-table-wrap"><table class="xl-table">${rowsHtml.join('')}</table></div>`;
+}
+
+// --- Stap-voor-stap review ("slideshow"), met echte voor/na Excel-grid ---
+function renderReviewStep() {
+  // the content height differs per field (citation length, which grid row-window is shown),
+  // which was shifting the page up/down on every Volgende/Vorige click -- pin the scroll
+  // position across the re-render so the button stays exactly where the cursor is.
+  const scrollY = window.scrollY;
+  const n = reviewFields.length;
+  const f = reviewFields[reviewIdx];
+  document.getElementById('reviewProgress').innerHTML = `Veld ${reviewIdx + 1} van ${n}
+    <div class="review-progress-bar"><div class="fill" style="width:${((reviewIdx + 1) / n) * 100}%"></div></div>`;
+
+  document.getElementById('reviewStep').innerHTML = `
+    <div class="review-body">
+      <div>
+        <div class="review-badge ${f.grounded ? 'grounded' : 'ungrounded'}">${f.grounded ? 'Gevonden' : 'Niet gevonden'}</div>
+        <div class="review-field">${f.field}</div>
+        <div class="review-cell">cel ${f.cell}</div>
+        <div class="review-value ${f.grounded ? '' : 'empty'}">${f.grounded ? f.value : 'Leeg gelaten'}</div>
+        ${f.citation ? `<div class="review-cite">"${f.citation}"</div>` : ''}
+      </div>
+      <div class="grid-pair">
+        <div class="grid-block"><h5>Voor</h5>${renderGrid(reviewGridBefore, f.cell)}</div>
+        <div class="grid-block"><h5>Na</h5>${renderGrid(reviewGridAfter, f.cell)}</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('reviewDots').innerHTML = reviewFields.map((rf, i) =>
+    `<div class="review-dot ${rf.grounded ? 'grounded' : 'ungrounded'} ${i === reviewIdx ? 'current' : ''}" data-i="${i}"></div>`).join('');
+  document.getElementById('reviewDots').querySelectorAll('.review-dot').forEach((d) => d.onclick = () => { reviewIdx = Number(d.dataset.i); renderReviewStep(); });
+
+  document.getElementById('reviewPrev').disabled = reviewIdx === 0;
+  document.getElementById('reviewNext').textContent = reviewIdx === n - 1 ? 'Klaar ✓' : 'Volgende →';
+
+  window.scrollTo(0, scrollY);
+}
+document.getElementById('reviewPrev').onclick = () => { if (reviewIdx > 0) { reviewIdx--; renderReviewStep(); } };
+document.getElementById('reviewNext').onclick = () => { if (reviewIdx < reviewFields.length - 1) { reviewIdx++; renderReviewStep(); } };
+
+document.getElementById('downloadBtn').onclick = () => {
+  window.location.href = `/api/excel-fills/${activeFillId}/download`;
+};
+
+document.getElementById('logoutLink').onclick = async (e) => {
+  e.preventDefault();
+  try { localStorage.removeItem('vk_role'); } catch (e) {}
+  await api('/api/logout', { method: 'POST' }).catch(() => {});
+  window.location.href = '/login.html';
+};
+
+(async () => {
+  let me;
+  try { me = await api('/api/me'); } catch { window.location.href = '/login.html'; return; }
+  // Billing is CEO-only (the subscribe/cancel endpoints already refuse anyone else). The link
+  // starts hidden in the HTML and is revealed here rather than removed after the fact: removing
+  // it meant employees saw it flash past on every page load, before /api/me had answered.
+  // Cache the role for the synchronous nav hint at the top of the page, so the next navigation
+  // paints the correct sidebar immediately instead of correcting it after this fetch returns.
+  try { localStorage.setItem('vk_role', me.user.role); } catch (e) {}
+  if (me.user.role === 'ceo') document.getElementById('navBilling').style.display = '';
+  if (me.company.track === 'general') { window.location.href = '/documents.html'; return; }
+  loadTemplates();
+})();
+</script>
+</body>
+</html>

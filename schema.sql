@@ -1,12 +1,18 @@
 CREATE TABLE IF NOT EXISTS companies (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
-  plan TEXT NOT NULL DEFAULT 'starter' CHECK (plan IN ('starter', 'professional', 'enterprise')),
+  -- 'accountancy' = Excel-invultool + documentanalyse (bundle, duurdere plans); 'general' =
+  -- alleen documentanalyse (goedkopere standalone plans). Gekozen op de landingpagina vóór
+  -- registratie; bepaalt welke nav-items en welk plan-rooster iemand te zien krijgt.
+  track TEXT NOT NULL DEFAULT 'accountancy' CHECK (track IN ('accountancy', 'general')),
+  plan TEXT NOT NULL DEFAULT 'starter',
   stripe_customer_id TEXT,
   stripe_subscription_id TEXT,
   subscription_status TEXT NOT NULL DEFAULT 'incomplete',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS track TEXT NOT NULL DEFAULT 'accountancy' CHECK (track IN ('accountancy', 'general'));
+ALTER TABLE companies DROP CONSTRAINT IF EXISTS companies_plan_check; -- plan keys now differ per track; validated in lib/plans.js instead
 
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
@@ -70,6 +76,10 @@ CREATE TABLE IF NOT EXISTS document_queries (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ALTER TABLE document_queries ADD COLUMN IF NOT EXISTS error_message TEXT;
+-- Marks a row that reused an identical earlier answer instead of running the model (see
+-- routes/documents.js). Such a row is a real entry in the user's thread, but it cost no
+-- analysis, so billing must not count it as one.
+ALTER TABLE document_queries ADD COLUMN IF NOT EXISTS reused_from_query_id INTEGER;
 
 CREATE INDEX IF NOT EXISTS idx_documents_company ON documents(company_id);
 CREATE INDEX IF NOT EXISTS idx_users_company ON users(company_id);
@@ -141,3 +151,49 @@ CREATE TABLE IF NOT EXISTS ad_forwards (
 );
 
 CREATE INDEX IF NOT EXISTS idx_ad_forwards_company ON ad_forwards(company_id, read);
+
+-- Excel templates an accountant uploads once, then reuses many times. field_map is the human-
+-- defined mapping of named fields to input cells (e.g. [{"field":"omzet_januari","cell":"B4"}]) --
+-- deliberately NOT inferred by the model. Any formulas already in the template file do the actual
+-- calculation in Excel itself once opened; this app only ever writes plain input values, never a
+-- computed number, into a cell.
+CREATE TABLE IF NOT EXISTS excel_templates (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  created_by INTEGER NOT NULL REFERENCES users(id),
+  name TEXT NOT NULL,
+  original_filename TEXT NOT NULL,
+  storage_path TEXT NOT NULL,
+  field_map_json JSONB NOT NULL,
+  is_favorite BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per generated fill, so the accountant's review ("did the AI get this right") stays
+-- auditable after the fact instead of only existing in the moment the file was downloaded.
+CREATE TABLE IF NOT EXISTS excel_fills (
+  id SERIAL PRIMARY KEY,
+  template_id INTEGER NOT NULL REFERENCES excel_templates(id) ON DELETE CASCADE,
+  filled_by INTEGER NOT NULL REFERENCES users(id),
+  input_text TEXT NOT NULL,
+  result_json JSONB NOT NULL, -- per-field: {value, grounded (bool), citation}
+  output_storage_path TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_excel_templates_company ON excel_templates(company_id);
+CREATE INDEX IF NOT EXISTS idx_excel_fills_template ON excel_fills(template_id);
+
+-- Simple, general-purpose employee -> CEO contact channel (any employee can flag something to
+-- the CEO, e.g. "this fill kept coming back ungrounded, can you check the template?") --
+-- deliberately NOT tied to documents or ads (that whole feature is gone); a plain message.
+CREATE TABLE IF NOT EXISTS team_messages (
+  id SERIAL PRIMARY KEY,
+  company_id INTEGER NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  from_user_id INTEGER NOT NULL REFERENCES users(id),
+  subject TEXT NOT NULL,
+  body TEXT NOT NULL DEFAULT '',
+  read BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_team_messages_company ON team_messages(company_id, read);
