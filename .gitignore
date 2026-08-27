@@ -2,3 +2,16 @@ node_modules/
 .env
 data/
 .DS_Store
+
+# geheimen en lokale opslag -- nooit publiceren
+.env.*
+!.env.example
+.secret
+lib/.secret
+gateway-data.json
+gateway-data.json.bak
+gateway-data.json.tmp
+data.json
+data.json.bak
+data.json.tmp
+*.log
